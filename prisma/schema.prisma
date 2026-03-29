@@ -1,0 +1,143 @@
+datasource db {
+  provider = "postgresql"
+
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+// --- USER & STAFF DIRECTORY (Merged Identity) ---
+model User {
+  id                Int                @id @default(autoincrement())
+  email             String             @unique
+  name              String?            // Professional Name
+  password          String
+  department        String?            // e.g., "Operations", "Finance"
+  role              Role               @default(USER) 
+  
+  // Relations
+  tasks             Task[]
+  attendance        Attendance[]
+  complianceItems   ComplianceItem[] 
+  createdTrainings  Training[]         @relation("UserCreatedTrainings")
+  expenses          OperationalExpense[]
+  
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+}
+
+enum Role {
+  ADMIN
+  ACCOUNTANT
+  HR
+  OPERATIONS_MANAGER
+  USER
+}
+
+// --- TASKS & GENERAL COMPLIANCE ---
+model Task {
+  id           Int      @id @default(autoincrement())
+  title        String
+  deadline     DateTime
+  frequency    String
+  responsible  String
+  status       String   @default("Pending")
+  documentUrl  String?
+  category     String   // Compliance, Training, ICT, Admin
+  userId       Int
+  user         User     @relation(fields: [userId], references: [id])
+}
+
+model ComplianceItem {
+  id           Int      @id @default(autoincrement())
+  title        String
+  deadline     DateTime
+  frequency    String   // e.g. "Monthly", "Annual"
+  responsible  String
+  status       String   @default("Pending")
+  documentUrl  String?
+  category     String   // e.g. "Tax", "Permit"
+  notes        String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  userId       Int
+  user         User     @relation(fields: [userId], references: [id])
+}
+
+// --- TRAINING MODULE ---
+enum TrainingStatus {
+  SCHEDULED
+  COMPLETED
+  CANCELLED
+}
+
+model Training {
+  id            Int            @id @default(autoincrement())
+  title         String
+  description   String?
+  startDate     DateTime
+  endDate       DateTime
+  location      String?
+  budgetKES     Int            @default(5000)
+  costKES       Int            @default(0)
+  status        TrainingStatus @default(SCHEDULED)
+  
+  // Admin/HR who created the session
+  createdById   Int
+  createdBy     User           @relation("UserCreatedTrainings", fields: [createdById], references: [id])
+  
+  attendees     Attendance[]
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+}
+
+// --- ATTENDANCE & TRACKING ---
+model Attendance {
+  id              Int                  @id @default(autoincrement())
+  attended        Boolean              @default(false)
+  
+  // Relations
+  userId          Int
+  user            User                 @relation(fields: [userId], references: [id])
+  trainingId      Int
+  training        Training             @relation(fields: [trainingId], references: [id])
+  
+  certificate     Certificate?
+  createdAt       DateTime             @default(now())
+
+  // Prevents duplicate check-ins
+  @@unique([userId, trainingId])
+}
+
+model Certificate {
+  id            Int        @id @default(autoincrement())
+  certificateNo String     @unique // e.g., BHL-2026-001
+  issueDate     DateTime   @default(now())
+  fileUrl       String?     
+  
+  attendanceId  Int        @unique
+  attendance    Attendance @relation(fields: [attendanceId], references: [id])
+}
+
+// --- OPERATIONAL MODULES ---
+model Requirement {
+  id        String   @id @default(cuid())
+  name      String
+  category  String
+  officer   String
+  dueDate   DateTime
+  status    String   @default("Pending")
+  createdAt DateTime @default(now())
+}
+
+model OperationalExpense {
+  id          Int      @id @default(autoincrement())
+  category    String   // e.g., "Utility", "Maintenance"
+  description String   
+  amount      Float
+  date        DateTime @default(now())
+  createdById Int
+  createdBy   User     @relation(fields: [createdById], references: [id])
+}
