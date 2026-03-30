@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { getServerSession } from "next-auth";
 import { prisma } from "@/lib/prisma"; 
-import { TrainingStatus } from "@prisma/client";
+import { TrainingStatus, Role } from "@prisma/client"; // FIXED: Added Role import
 
 /**
  * ==========================================
@@ -200,14 +200,12 @@ export async function generateCertificateRecord(attendanceId: number): Promise<s
   if (!session?.user?.email) return null;
 
   try {
-    // 1. Double check if certificate already exists
     const existingCert = await prisma.certificate.findUnique({
       where: { attendanceId }
     });
 
     if (existingCert) return existingCert.certificateNo;
 
-    // 2. Verify attendance and participation
     const attendance = await prisma.attendance.findUnique({
       where: { id: attendanceId },
       include: { training: true }
@@ -218,13 +216,11 @@ export async function generateCertificateRecord(attendanceId: number): Promise<s
       return null;
     }
 
-    // 3. Generate Sequential Certificate Number
     const count = await prisma.certificate.count();
     const year = new Date().getFullYear();
     const serial = (count + 1).toString().padStart(3, '0');
     const newCertNo = `BHL-${year}-${serial}`;
 
-    // 4. Create in DB
     const newCert = await prisma.certificate.create({
       data: {
         certificateNo: newCertNo,
@@ -232,12 +228,83 @@ export async function generateCertificateRecord(attendanceId: number): Promise<s
       },
     });
 
-    // 5. Revalidate the specific training page
     revalidatePath(`/dashboard/training/${attendance.trainingId}`);
+    revalidatePath(`/dashboard/certificates/${newCertNo}`); // FIXED: Add certificate revalidation
     
     return newCert.certificateNo;
   } catch (error) {
     console.error("❌ Failed to generate certificate:", error);
     return null;
+  }
+}
+
+/**
+ * ==========================================
+ * 4. STAFF & USER MANAGEMENT ACTIONS
+ * ==========================================
+ */
+
+export async function createEmployee(formData: FormData): Promise<void> {
+  const session = await getServerSession();
+  
+  if (!session?.user?.email) {
+    console.error("❌ No active session found.");
+    return;
+  }
+
+  const name = formData.get("name") as string;
+  const email = formData.get("email") as string;
+  const roleInput = formData.get("role") as string;
+  
+  // FIXED: Standardize role mapping to use the 'Role' Enum type
+  const allowedRoles: string[] = ["ADMIN", "HR", "ACCOUNTANT", "OPERATIONS_MANAGER"];
+  const role = (allowedRoles.includes(roleInput) ? roleInput : "USER") as Role;
+
+  if (!name || !email) {
+    console.error("❌ Missing required employee fields");
+    return;
+  }
+
+  try {
+    const currentUser = await prisma.user.findUnique({
+      where: { email: session.user.email }
+    });
+
+    if (!currentUser || (currentUser.role !== "ADMIN" && currentUser.role !== "HR")) {
+      console.error("⛔ Unauthorized: Only Admin/HR can add staff.");
+      return;
+    }
+
+    await prisma.user.create({
+      data: {
+        name,
+        email,
+        role,
+        password: "BHL-Temp-Password-2026", 
+        isActive: true, // Added support for your new schema field
+      },
+    });
+
+    revalidatePath("/staff");
+    revalidatePath("/dashboard");
+    console.log(`✅ Employee ${name} created successfully.`);
+  } catch (error) {
+    console.error("❌ Error creating employee:", error);
+  }
+}
+
+export async function deleteEmployee(id: number): Promise<void> {
+  const session = await getServerSession();
+  if (!session?.user?.email) return;
+
+  try {
+    await prisma.user.delete({
+      where: { id },
+    });
+    revalidatePath("/staff");
+    revalidatePath("/dashboard");
+    console.log(`🗑️ Employee ID ${id} removed.`);
+  } catch (error) {
+    console.error("❌ Error deleting employee:", error);
   }
 }

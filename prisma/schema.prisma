@@ -1,32 +1,13 @@
 datasource db {
   provider = "postgresql"
-
+ 
 }
 
 generator client {
   provider = "prisma-client-js"
 }
 
-// --- USER & STAFF DIRECTORY (Merged Identity) ---
-model User {
-  id                Int                @id @default(autoincrement())
-  email             String             @unique
-  name              String?            // Professional Name
-  password          String
-  department        String?            // e.g., "Operations", "Finance"
-  role              Role               @default(USER) 
-  
-  // Relations
-  tasks             Task[]
-  attendance        Attendance[]
-  complianceItems   ComplianceItem[] 
-  createdTrainings  Training[]         @relation("UserCreatedTrainings")
-  expenses          OperationalExpense[]
-  
-  createdAt         DateTime           @default(now())
-  updatedAt         DateTime           @updatedAt
-}
-
+// --- IDENTITY & ACCESS ---
 enum Role {
   ADMIN
   ACCOUNTANT
@@ -35,38 +16,63 @@ enum Role {
   USER
 }
 
-// --- TASKS & GENERAL COMPLIANCE ---
+model User {
+  id         Int     @id @default(autoincrement())
+  email      String  @unique
+  name       String? 
+  password   String
+  department String? 
+  role       Role    @default(USER)
+  isActive   Boolean @default(true) // Senior Tip: Deactivate, don't delete staff
+
+  // Relations
+  tasks                Task[]
+  attendance           Attendance[]
+  complianceItems      ComplianceItem[]
+  createdTrainings     Training[]           @relation("UserCreatedTrainings")
+  expenses             OperationalExpense[]
+  maintenancePerformed MaintenanceLog[]
+  stockMovements       StockMovement[]
+  financialReports     FinancialReport[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// --- TASKS & COMPLIANCE ---
 model Task {
-  id           Int      @id @default(autoincrement())
-  title        String
-  deadline     DateTime
-  frequency    String
-  responsible  String
-  status       String   @default("Pending")
-  documentUrl  String?
-  category     String   // Compliance, Training, ICT, Admin
-  userId       Int
-  user         User     @relation(fields: [userId], references: [id])
+  id          Int      @id @default(autoincrement())
+  title       String
+  deadline    DateTime
+  frequency   String
+  responsible String
+  status      String   @default("Pending")
+  documentUrl String?
+  category    String 
+  
+  userId Int
+  user   User @relation(fields: [userId], references: [id])
 }
 
 model ComplianceItem {
-  id           Int      @id @default(autoincrement())
-  title        String
-  deadline     DateTime
-  frequency    String   // e.g. "Monthly", "Annual"
-  responsible  String
-  status       String   @default("Pending")
-  documentUrl  String?
-  category     String   // e.g. "Tax", "Permit"
-  notes        String?
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  id          Int      @id @default(autoincrement())
+  title       String
+  deadline    DateTime
+  frequency   String 
+  responsible String
+  status      String   @default("Pending")
+  documentUrl String?
+  category    String 
+  notes       String?
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
-  userId       Int
-  user         User     @relation(fields: [userId], references: [id])
+  userId Int
+  user   User @relation(fields: [userId], references: [id])
 }
 
-// --- TRAINING MODULE ---
+// --- TRAINING & CERTIFICATION ---
 enum TrainingStatus {
   SCHEDULED
   COMPLETED
@@ -74,70 +80,143 @@ enum TrainingStatus {
 }
 
 model Training {
-  id            Int            @id @default(autoincrement())
-  title         String
-  description   String?
-  startDate     DateTime
-  endDate       DateTime
-  location      String?
-  budgetKES     Int            @default(5000)
-  costKES       Int            @default(0)
-  status        TrainingStatus @default(SCHEDULED)
-  
-  // Admin/HR who created the session
-  createdById   Int
-  createdBy     User           @relation("UserCreatedTrainings", fields: [createdById], references: [id])
-  
-  attendees     Attendance[]
-  createdAt     DateTime       @default(now())
-  updatedAt     DateTime       @updatedAt
+  id          Int            @id @default(autoincrement())
+  title       String
+  description String?
+  startDate   DateTime
+  endDate     DateTime
+  location    String?
+  budgetKES   Int            @default(5000)
+  costKES     Int            @default(0)
+  status      TrainingStatus @default(SCHEDULED)
+
+  createdById Int
+  createdBy   User @relation("UserCreatedTrainings", fields: [createdById], references: [id])
+
+  attendees Attendance[]
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
 }
 
-// --- ATTENDANCE & TRACKING ---
 model Attendance {
-  id              Int                  @id @default(autoincrement())
-  attended        Boolean              @default(false)
-  
-  // Relations
-  userId          Int
-  user            User                 @relation(fields: [userId], references: [id])
-  trainingId      Int
-  training        Training             @relation(fields: [trainingId], references: [id])
-  
-  certificate     Certificate?
-  createdAt       DateTime             @default(now())
+  id       Int     @id @default(autoincrement())
+  attended Boolean @default(false)
 
-  // Prevents duplicate check-ins
+  userId     Int
+  user       User     @relation(fields: [userId], references: [id])
+  trainingId Int
+  training   Training @relation(fields: [trainingId], references: [id])
+
+  certificate Certificate?
+  createdAt   DateTime    @default(now())
+
   @@unique([userId, trainingId])
 }
 
 model Certificate {
-  id            Int        @id @default(autoincrement())
-  certificateNo String     @unique // e.g., BHL-2026-001
-  issueDate     DateTime   @default(now())
-  fileUrl       String?     
-  
-  attendanceId  Int        @unique
-  attendance    Attendance @relation(fields: [attendanceId], references: [id])
+  id            Int      @id @default(autoincrement())
+  certificateNo String   @unique 
+  issueDate     DateTime @default(now())
+  fileUrl       String?
+
+  attendanceId Int        @unique
+  attendance   Attendance @relation(fields: [attendanceId], references: [id])
 }
 
-// --- OPERATIONAL MODULES ---
-model Requirement {
-  id        String   @id @default(cuid())
-  name      String
-  category  String
-  officer   String
-  dueDate   DateTime
-  status    String   @default("Pending")
+// --- OPERATIONS & ASSETS ---
+model Vendor {
+  id            Int      @id @default(autoincrement())
+  name          String   @unique
+  category      String 
+  contactPerson String?
+  phone         String?
+
+  expenses        OperationalExpense[]
+  maintenanceLogs MaintenanceLog[]
+  createdAt       DateTime             @default(now())
+}
+
+model Asset {
+  id           Int       @id @default(autoincrement())
+  name         String 
+  type         String 
+  serialNumber String? 
+  purchaseDate DateTime?
+  status       String    @default("OPERATIONAL") 
+
+  maintenance MaintenanceLog[]
+  createdAt   DateTime      @default(now())
+}
+
+model MaintenanceLog {
+  id        Int      @id @default(autoincrement())
+  assetId   Int
+  asset     Asset    @relation(fields: [assetId], references: [id])
+  vendorId  Int?
+  vendor    Vendor?  @relation(fields: [vendorId], references: [id])
+
+  serviceDate     DateTime  @default(now())
+  nextServiceDate DateTime?
+  description     String 
+  cost            Float     @default(0)
+
+  performedById Int
+  performedBy   User @relation(fields: [performedById], references: [id])
+}
+
+// --- INVENTORY & FINANCE ---
+model InventoryItem {
+  id          Int      @id @default(autoincrement())
+  name        String   @unique
+  sku         String?  @unique 
+  category    String 
+  quantity    Int      @default(0)
+  minQuantity Int      @default(5) 
+  unitPrice   Float    @default(0)
+
+  movements StockMovement[]
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+}
+
+model StockMovement {
+  id     Int    @id @default(autoincrement())
+  itemId Int
+  item   InventoryItem @relation(fields: [itemId], references: [id])
+
+  type     String // "IN" or "OUT"
+  quantity Int
+  reason   String? 
+
+  performedById Int
+  performedBy   User @relation(fields: [performedById], references: [id])
+
   createdAt DateTime @default(now())
 }
 
 model OperationalExpense {
   id          Int      @id @default(autoincrement())
-  category    String   // e.g., "Utility", "Maintenance"
-  description String   
+  category    String 
+  description String
   amount      Float
   date        DateTime @default(now())
+  
   createdById Int
   createdBy   User     @relation(fields: [createdById], references: [id])
+  
+  vendorId    Int?
+  vendor      Vendor?  @relation(fields: [vendorId], references: [id])
+}
+
+model FinancialReport {
+  id              Int    @id @default(autoincrement())
+  month           String 
+  totalExpenses   Float
+  maintenanceCost Float
+  inventoryValue  Float
+  
+  generatedById   Int
+  generatedBy     User   @relation(fields: [generatedById], references: [id])
+
+  createdAt DateTime @default(now())
 }
