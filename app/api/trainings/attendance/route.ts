@@ -4,48 +4,62 @@ import { prisma } from "@/lib/prisma";
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    
-    // We receive these from your frontend form
     const { trainingId, staffEmail, certificateUrl } = body; 
 
-    // 1. DATA LOOKUP: We find the User by email to get their numeric ID
-    const user = await prisma.user.findUnique({
-      where: { email: staffEmail },
-    });
+    // 1. DUAL LOOKUP: Find the User AND check if Training exists
+    const [user, training] = await Promise.all([
+      prisma.user.findUnique({ where: { email: staffEmail } }),
+      prisma.training.findUnique({ where: { id: Number(trainingId) } })
+    ]);
 
-    // 2. GUARD CLAUSE: If the email isn't in our User table, we stop here
+    // 2. GUARD CLAUSES: Stop if data is missing
     if (!user) {
       return NextResponse.json(
-        { error: `No staff member found with email: ${staffEmail}` }, 
+        { error: `Staff member not found: ${staffEmail}` }, 
         { status: 404 }
       );
     }
 
-    // 3. THE FIX: Create Attendance using 'userId' (not staffName)
-    // We also handle the Certificate relationship defined in your schema
+    if (!training) {
+      return NextResponse.json(
+        { error: `Training module ID ${trainingId} not found` }, 
+        { status: 404 }
+      );
+    }
+
+    // 3. ATOMIC CREATION: Create Attendance + Certificate in one transaction
     const attendance = await prisma.attendance.create({
       data: {
-        trainingId: Number(trainingId),
-        userId: user.id, // This matches your Attendance model perfectly
+        trainingId: training.id,
+        userId: user.id,
         attended: true,
-        // Since Attendance and Certificate are a 1-to-1 relation in your schema:
+        // Using nested create for the 1-to-1 Certificate relation
         certificate: certificateUrl ? {
           create: {
-            certificateNo: `BHL-CERT-${Date.now()}`,
+            certificateNo: `BHL-CERT-${Date.now()}-${user.id}`,
             fileUrl: certificateUrl,
             issueDate: new Date(),
           }
         } : undefined
       },
       include: {
-        user: true,        // Includes name/email in the final response
-        certificate: true  // Includes certificate details
+        user: true,        // For the Staff Name
+        training: true,    // For the Course Title/Cost
+        certificate: true  // For the File Link
       }
     });
 
-    return NextResponse.json(attendance);
+    return NextResponse.json({ 
+      success: true, 
+      message: "Achievement recorded successfully",
+      data: attendance 
+    });
+
   } catch (error) {
-    console.error("❌ Critical Build Fix Error:", error);
-    return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
+    console.error("❌ Attendance Creation Error:", error);
+    return NextResponse.json(
+      { error: "Failed to record training achievement" }, 
+      { status: 500 }
+    );
   }
 }

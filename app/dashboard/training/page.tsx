@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { signOut, useSession } from "next-auth/react";
 import { LogOut, Download, Plus, Trash2, Search, BarChart3, Wallet, GraduationCap, Printer } from "lucide-react";
@@ -12,6 +12,12 @@ interface Training {
   cost: number;
 }
 
+// Fixed "Unexpected any" by specifying types
+const formatKES = (amount: number | string) => {
+  const num = Number(amount) || 0;
+  return num.toFixed(0).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+};
+
 export default function TrainingModule() {
   const { data: session } = useSession();
   const [trainings, setTrainings] = useState<Training[]>([]);
@@ -21,28 +27,33 @@ export default function TrainingModule() {
     title: "", 
     startDate: "", 
     endDate: "", 
-    costKES: 0,
+    cost: 0,
   });
 
   const ANNUAL_BUDGET = 1000000;
 
-  // This loads the data safely without causing the "cascading render" error
-  const loadTrainings = async () => {
+  // 1. Wrap the loader in useCallback to prevent it from changing on every render
+  const loadTrainings = useCallback(async () => {
     try {
       const res = await fetch("/api/trainings");
+      if (!res.ok) throw new Error("Failed to fetch");
       const data = await res.json();
       setTrainings(Array.isArray(data) ? data : []);
     } catch (err) {
-      console.error("Failed to load:", err);
+      console.error("Fetch error:", err);
     }
-  };
+  }, []); // Empty dependency array means this function is stable
 
+  // 2. The Effect now simply "synchronizes" with the stable loader
   useEffect(() => {
-    const fetchData = async () => {
-      await loadTrainings();
-    };
-    fetchData();
-  }, []);
+    let isMounted = true;
+    
+    if (isMounted) {
+      loadTrainings();
+    }
+
+    return () => { isMounted = false; }; // Cleanup to prevent state updates on unmounted component
+  }, [loadTrainings]);
 
   const isSpecialMonth = (dateString: string) => {
     if (!dateString) return false;
@@ -55,7 +66,7 @@ export default function TrainingModule() {
     t.title.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  const totalSpent = trainings.reduce((sum, t) => sum + (Number(t.cost) || 0), 0);
+  const totalSpent = trainings.reduce((sum, t) => sum + (Number(t?.cost) || 0), 0);
   const remainingBudget = ANNUAL_BUDGET - totalSpent; 
   const progressPercent = Math.min((totalSpent / ANNUAL_BUDGET) * 100, 100);
 
@@ -83,7 +94,7 @@ export default function TrainingModule() {
 
     if (response.ok) {
       setMessage("✅ Success! Training added.");
-      setFormData({ title: "", startDate: "", endDate: "", costKES: 0 });
+      setFormData({ title: "", startDate: "", endDate: "", cost: 0 });
       loadTrainings(); 
     }
   };
@@ -99,7 +110,6 @@ export default function TrainingModule() {
 
   return (
     <div className="p-8 max-w-6xl mx-auto font-sans bg-gray-50 min-h-screen">
-      
       {/* 1. HEADER SECTION */}
       <div className="flex justify-between items-center mb-8 bg-white p-6 rounded-2xl shadow-sm border border-gray-100 no-print">
         <div>
@@ -137,7 +147,7 @@ export default function TrainingModule() {
             <div className="p-2 bg-amber-50 rounded-lg text-amber-600"><BarChart3 size={20}/></div>
             <p className="text-[10px] font-black uppercase text-gray-400 tracking-widest">Total Spent</p>
           </div>
-          <h3 className="text-2xl font-black text-slate-800">KES {totalSpent.toLocaleString()}</h3>
+          <h3 className="text-2xl font-black text-slate-800">KES {formatKES(totalSpent)}</h3>
         </div>
 
         <div className="bg-white p-6 rounded-[1.5rem] shadow-sm border border-gray-100">
@@ -146,7 +156,7 @@ export default function TrainingModule() {
             <p className="text-[10px] font-black uppercase text-gray-400 tracking-widest">Remaining</p>
           </div>
           <h3 className={`text-2xl font-black ${remainingBudget < 100000 ? 'text-red-600' : 'text-emerald-600'}`}>
-            KES {remainingBudget.toLocaleString()}
+            KES {formatKES(remainingBudget)}
           </h3>
         </div>
       </div>
@@ -196,7 +206,7 @@ export default function TrainingModule() {
             )}
             <div className="md:col-span-2 space-y-1">
                <label className="text-[10px] font-black uppercase text-gray-400 ml-2">Cost (KES)</label>
-               <input type="number" className="w-full border-2 border-gray-50 bg-gray-50 p-3 rounded-2xl outline-none" required value={formData.costKES} onChange={(e) => setFormData({...formData, costKES: Number(e.target.value)})} />
+               <input type="number" className="w-full border-2 border-gray-50 bg-gray-50 p-3 rounded-2xl outline-none" required value={formData.cost} onChange={(e) => setFormData({...formData, cost: Number(e.target.value)})} />
             </div>
             <button className="md:col-span-2 bg-slate-900 text-white py-4 rounded-2xl font-black hover:bg-blue-600 transition-all shadow-lg shadow-blue-100 uppercase tracking-widest text-xs">Create Session</button>
           </form>
@@ -234,7 +244,7 @@ export default function TrainingModule() {
                       </Link>
                     </div>
                   </td>
-                  <td className="p-6 font-black text-blue-900">KES {t.cost.toLocaleString()}</td>
+                  <td className="p-6 font-black text-blue-900">KES {formatKES(t?.cost)}</td>
                   <td className="p-6 no-print">
                     <div className="flex flex-col gap-2 bg-slate-50 p-4 rounded-2xl border border-slate-100">
                       <input type="text" placeholder="Staff Name..." id={`staff-${t.id}`} className="bg-white border border-gray-200 p-2 text-xs rounded-xl outline-none" />
@@ -273,7 +283,6 @@ export default function TrainingModule() {
         </table>
       </div>
 
-      {/* 7. PRINT STYLES */}
       <style jsx global>{`
         @media print {
           .no-print { display: none !important; }

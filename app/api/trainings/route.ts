@@ -3,29 +3,26 @@ import { PrismaClient } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 import pg from "pg";
 
-// 1. DATABASE CONNECTION SETUP
+// 1. DATABASE CONNECTION SETUP (PostgreSQL Optimized)
 const connectionString = `${process.env.DATABASE_URL}`;
 const pool = new pg.Pool({ connectionString });
 
-// FIX: Casting 'pool' to the exact type PrismaPg expects using ConstructorParameters
 type PrismaPgAdapterArgs = ConstructorParameters<typeof PrismaPg>[0];
 const adapter = new PrismaPg(pool as unknown as PrismaPgAdapterArgs);
 const prisma = new PrismaClient({ adapter });
 
 /**
  * HELPER: Checks if a date is within the Kenyan Q2 Compliance window (April-June)
- * month 4 = April, month 6 = June
  */
 function isAprilToJune(date: Date) {
   const month = date.getMonth() + 1; 
   return month >= 4 && month <= 6;
 }
 
-// 2. GET: Fetch all trainings
+// 2. GET: Fetch all trainings for the Dashboard
 export async function GET() {
   try {
     const trainings = await prisma.training.findMany({
-      // include: { attendees: true }, // Uncomment if your schema has an 'attendees' relation
       orderBy: { startDate: "desc" },
     });
     return NextResponse.json(trainings);
@@ -35,13 +32,15 @@ export async function GET() {
   }
 }
 
-// 3. POST: Create Training with Budget & Date Logic
+// 3. POST: Create Training with Budget, Q2 Logic & Fallbacks
 export async function POST(req: Request) {
   try {
     const body = await req.json();
+    
+    // Destructure data sent from AddTrainingModal
     const { title, description, startDate, endDate, location, costKES } = body;
 
-    // RULE: Budget Enforcement (KES 5,000 limit)
+    // RULE 1: Budget Enforcement (KES 5,000 limit) - Logic Maintained
     const cost = parseFloat(costKES);
     if (cost > 5000) {
       return NextResponse.json(
@@ -50,32 +49,35 @@ export async function POST(req: Request) {
       );
     }
 
+    // RULE 2: Q2 Compliance Logic - Logic Maintained
     const start = new Date(startDate);
-    const isQ2 = isAprilToJune(start);
-    
-    // Log the Q2 status so 'isQ2' is considered "used" by TypeScript
-    if (isQ2) {
-      console.log(`📅 Compliance Alert: ${title} is scheduled for the April-June window.`);
+    if (isAprilToJune(start)) {
+      console.log(`📅 Compliance Alert: ${title} is scheduled for the Q2 window.`);
     }
 
     /**
      * RELATIONSHIP REQUIREMENT:
-     * Your schema likely requires 'createdById'. We link this to the first ADMIN user.
-     * Ensure you have run 'npx prisma db seed' so an Admin exists!
+     * We MUST find an admin because the schema says createdBy is mandatory.
      */
     const adminUser = await prisma.user.findFirst({ where: { role: 'ADMIN' } });
+
+    // If no admin is found, we stop here to satisfy TypeScript and Prisma constraints
     if (!adminUser) {
-      return NextResponse.json({ error: "No Admin user found to assign this training." }, { status: 500 });
+      return NextResponse.json(
+        { error: "No Admin user found. Please run your seed or add an admin in Prisma Studio." }, 
+        { status: 500 }
+      );
     }
 
     const training = await prisma.training.create({
       data: {
         title,
-        description,
+        description: description || "BHL Business Hub Training Session",
         startDate: start,
-        endDate: new Date(endDate),
-        location,
+        endDate: endDate ? new Date(endDate) : start,
+        location: location || "Ruiru Main Campus",
         costKES: cost,
+        // FIX: No more 'undefined' error. adminUser is guaranteed here.
         createdBy: {
           connect: { id: adminUser.id }
         }
@@ -85,11 +87,14 @@ export async function POST(req: Request) {
     return NextResponse.json(training, { status: 201 });
   } catch (error) {
     console.error("❌ API POST Error:", error);
-    return NextResponse.json({ error: "Failed to create training" }, { status: 500 });
+    return NextResponse.json(
+      { error: "Failed to create training. Verify database connection." }, 
+      { status: 500 }
+    );
   }
 }
 
-// 4. DELETE: Remove Training by ID
+// 4. DELETE: Remove Training by ID - Logic Maintained
 export async function DELETE(req: Request) {
   try {
     const { searchParams } = new URL(req.url);
@@ -99,7 +104,6 @@ export async function DELETE(req: Request) {
       return NextResponse.json({ error: "ID is required" }, { status: 400 });
     }
 
-    // FIX: Convert URL String ID to Number for the Database
     const idNumber = parseInt(id);
     if (isNaN(idNumber)) {
       return NextResponse.json({ error: "Invalid ID format" }, { status: 400 });
@@ -113,7 +117,7 @@ export async function DELETE(req: Request) {
   } catch (error) {
     console.error("❌ Delete Error:", error);
     return NextResponse.json(
-      { error: "Could not delete. Check if staff are registered to this training." }, 
+      { error: "Could not delete. Check for database relations." }, 
       { status: 500 }
     );
   }

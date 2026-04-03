@@ -1,138 +1,145 @@
 "use client";
 
 import { useState } from "react";
-import { toast } from "sonner";
-import { createTrainingItem } from "@/app/actions";
-import { SubmitButton } from "./SubmitButton";
+import axios from "axios";
 
 interface Props {
   isOpen: boolean;
   onClose: () => void;
-  onSuccess: () => Promise<void>;
+  onSuccess: () => void;
 }
 
-export default function AddTrainingModal({ isOpen, onClose, onSuccess }: Props) {
-  const [error, setError] = useState<string | null>(null);
+export default function AddComplianceModal({ isOpen, onClose, onSuccess }: Props) {
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  
+  const [formData, setFormData] = useState({
+    title: "",
+    deadline: "",
+    category: "Regulatory", // Default
+    responsible: "Admin",    // Default
+  });
 
   if (!isOpen) return null;
 
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError("");
+    setLoading(true);
+
+    try {
+      // API CALL to your compliance endpoint
+      await axios.post("/api/compliance", {
+        ...formData,
+        status: "Pending" // New items always start as Pending
+      });
+
+      onSuccess(); // Refresh Dashboard stats
+      onClose();   // Close Modal
+      // Reset form
+      setFormData({ title: "", deadline: "", category: "Regulatory", responsible: "Admin" });
+    } catch (err) {
+      console.error("Compliance Sync Error:", err);
+      setError("Database Sync Failed. Ensure all fields are valid.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in duration-200">
+      <div className="bg-white rounded-[2.5rem] shadow-2xl w-full max-w-md overflow-hidden animate-in zoom-in-95 duration-200">
         
         {/* HEADER */}
-        <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-blue-50">
+        <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50">
           <div>
-            <h2 className="font-bold text-slate-800 text-lg">Schedule Training</h2>
-            <p className="text-[10px] text-blue-600 font-bold uppercase tracking-widest mt-0.5">
-              BHL Compliance Module
+            <h2 className="font-black text-slate-800 text-lg uppercase tracking-tighter">New Requirement</h2>
+            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-0.5">
+              BHL Operational Tracker
             </p>
           </div>
-          <button 
-            onClick={onClose} 
-            className="text-slate-400 hover:text-slate-600 transition-colors text-2xl"
-          >
-            &times;
-          </button>
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-800 text-2xl">&times;</button>
         </div>
 
-        {/* FORM */}
-        <form 
-          action={async (formData: FormData) => {
-            setError(null); // Reset error state
-            
-            // 1. FRONT-END BUDGET ENFORCEMENT (Functionality Maintained)
-            const cost = parseFloat(formData.get("costKES") as string);
-            if (cost > 5000) {
-              setError("Budget Alert: Maximum allowed is KES 5,000 per session.");
-              return;
-            }
-
-            try {
-              // 2. SERVER ACTION
-              await createTrainingItem(formData);
-              
-              // 3. REFRESH & CLOSE
-              await onSuccess(); 
-              toast.success("Training session scheduled successfully!");
-              onClose(); 
-            } catch {
-              setError("Cloud Sync Failed. Please check your connection.");
-            }
-          }} 
-          className="p-6 space-y-4"
-        >
-          {/* ERROR DISPLAY (Functionality Maintained) */}
+        <form onSubmit={handleSubmit} className="p-8 space-y-4">
+          
           {error && (
-            <div className="p-3 bg-red-50 text-red-600 text-xs rounded-xl border border-red-100 font-medium animate-shake">
+            <div className="p-3 bg-red-50 text-red-600 text-[10px] rounded-xl border border-red-100 font-black uppercase text-center">
               {error}
             </div>
           )}
 
-          {/* TRAINING TITLE */}
+          {/* REQUIREMENT TITLE */}
           <div>
-            <label className="block text-[10px] font-bold uppercase text-slate-400 mb-1 tracking-wider">
-              Course / Training Title
-            </label>
+            <label className="block text-[10px] font-black uppercase text-slate-400 mb-1 ml-1 tracking-widest">Requirement Name</label>
             <input 
-              name="title"
               required
-              className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 outline-none transition-all"
-              placeholder="e.g., KASNEB CPD Seminar"
+              className="w-full p-4 bg-slate-50 border-2 border-transparent focus:border-blue-500 rounded-2xl outline-none transition-all font-bold text-slate-800 text-sm"
+              placeholder="e.g. VAT Returns Filing"
+              value={formData.title}
+              onChange={(e) => setFormData({...formData, title: e.target.value})}
+            />
+          </div>
+
+          {/* DEADLINE DATE */}
+          <div>
+            <label className="block text-[10px] font-black uppercase text-slate-400 mb-1 ml-1 tracking-widest">Deadline</label>
+            <input 
+              type="date" 
+              required
+              className="w-full bg-slate-50 p-4 rounded-2xl outline-none font-bold text-slate-800 text-sm border-2 border-transparent focus:border-blue-500"
+              value={formData.deadline}
+              onChange={(e) => setFormData({...formData, deadline: e.target.value})}
             />
           </div>
 
           <div className="grid grid-cols-2 gap-4">
-            {/* START DATE */}
+            {/* CATEGORY DROPDOWN */}
             <div>
-              <label className="block text-[10px] font-bold uppercase text-slate-400 mb-1 tracking-wider">
-                Start Date
-              </label>
-              <input 
-                name="startDate"
-                required
-                type="date"
-                className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-500"
-              />
+              <label className="block text-[10px] font-black uppercase text-slate-400 mb-1 ml-1 tracking-widest">Category</label>
+              <select 
+                className="w-full bg-slate-50 p-4 rounded-2xl outline-none font-bold text-slate-800 text-sm appearance-none cursor-pointer"
+                value={formData.category}
+                onChange={(e) => setFormData({...formData, category: e.target.value})}
+              >
+                <option value="Regulatory">Regulatory</option>
+                <option value="Taxation">Taxation</option>
+                <option value="Licensing">Licensing</option>
+                <option value="Operations">Operations</option>
+              </select>
             </div>
-            {/* COST KES */}
-            <div>
-              <label className="block text-[10px] font-bold uppercase text-slate-400 mb-1 tracking-wider">
-                Cost (KES)
-              </label>
-              <input 
-                name="costKES"
-                required
-                type="number"
-                min="0"
-                className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-500"
-                placeholder="Max 5,000"
-              />
-            </div>
-          </div>
 
-          {/* LOCATION (Functionality Maintained) */}
-          <div>
-            <label className="block text-[10px] font-bold uppercase text-slate-400 mb-1 tracking-wider">
-              Location
-            </label>
-            <input 
-              name="location"
-              required
-              className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-500"
-              placeholder="e.g., Ruiru Main Campus"
-            />
+            {/* RESPONSIBLE DROPDOWN */}
+            <div>
+              <label className="block text-[10px] font-black uppercase text-slate-400 mb-1 ml-1 tracking-widest">Assignee</label>
+              <select 
+                className="w-full bg-slate-50 p-4 rounded-2xl outline-none font-bold text-slate-800 text-sm appearance-none cursor-pointer"
+                value={formData.responsible}
+                onChange={(e) => setFormData({...formData, responsible: e.target.value})}
+              >
+                <option value="Admin">Admin HQ</option>
+                <option value="Finance">Finance Team</option>
+                <option value="Operations">Ops Lead</option>
+                <option value="Legal">Legal Desk</option>
+              </select>
+            </div>
           </div>
 
           {/* ACTIONS */}
-          <div className="pt-4 flex flex-col gap-3">
-            <SubmitButton /> 
+          <div className="pt-4 flex flex-col gap-2">
+            <button 
+              type="submit"
+              disabled={loading}
+              className="w-full bg-blue-600 text-white py-4 rounded-2xl font-black text-[10px] uppercase tracking-[0.2em] hover:bg-slate-900 transition-all shadow-xl shadow-blue-100 disabled:opacity-50"
+            >
+              {loading ? "Registering..." : "Add to Dashboard"}
+            </button>
             <button 
               type="button"
               onClick={onClose}
-              className="w-full py-3 text-sm font-bold text-slate-400 hover:text-slate-600 transition-colors"
+              className="w-full py-3 text-[10px] font-black uppercase text-slate-400 hover:text-slate-600 transition-colors"
             >
-              Discard
+              Cancel
             </button>
           </div>
         </form>
