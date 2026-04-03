@@ -4,12 +4,11 @@ import { prisma } from "@/lib/prisma"; // This pulls from our new "Global Connec
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    const { trainingId, staffName, staffEmail, certificateUrl } = body;
+    const { trainingId, staffEmail, certificateUrl } = body;
 
     const newRecord = await prisma.attendance.create({
       data: {
         trainingId: Number(trainingId),
-        staffName,
         staffEmail,
         attended: true,
         certificateUrl,
@@ -33,19 +32,21 @@ export async function GET(req: Request) {
       return NextResponse.json({ error: "Name is required" }, { status: 400 });
     }
 
-    // This tells Prisma to find the person AND include the Training info
+    // This tells Prisma to find the attendance by a known field and include Training
     const records = await prisma.attendance.findMany({
       where: {
-        staffName: {
-          contains: name, // This finds "Alice" even if you type "Ali"
-          mode: 'insensitive' // This ignores Capital Letters (alice vs Alice)
+        staff: {
+          email: {
+            contains: name,
+            mode: 'insensitive'
+          }
         }
       },
       include: {
-        training: true // This grabs the Training Title for us
+        training: true
       },
       orderBy: {
-        createdAt: 'desc' // Shows newest trainings first
+        createdAt: 'desc'
       }
     });
 

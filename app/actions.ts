@@ -60,7 +60,7 @@ export async function createComplianceItem(formData: FormData): Promise<void> {
         category,
         responsible: responsible, // Mapping to schema field
         deadline: new Date(deadlineStr),
-        remindDaysBefore: remindDays,
+        remindDaysBefore: Number(remindDays) || 0,
         status: "Pending",
         frequency: "Monthly", 
         userId: dbUser.id, 
