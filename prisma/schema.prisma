@@ -45,6 +45,7 @@ model ComplianceItem {
   deadline    DateTime
   frequency   String
   responsible String
+  remindDaysBefore Int
   status      String   @default("Pending")
   documentUrl String?
   category    String
