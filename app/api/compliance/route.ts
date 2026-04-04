@@ -51,6 +51,7 @@ export async function POST(req: Request) {
         responsible: body.responsible || "Admin",
         category: body.category || "General",
         status: "Pending", // Hardcoded default for safety
+        remindDaysBefore: 7,
         user: {
           connect: { id: body.userId } // Connect to existing user
         }
