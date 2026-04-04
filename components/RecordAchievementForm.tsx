@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, FormEvent } from "react";
-import { Award, Mail, Link, CheckCircle2, Loader2, AlertCircle } from "lucide-react";
+import { Award, Mail, Link, CheckCircle2, Loader2, AlertCircle, } from "lucide-react";
 
 // 1. Define strict interfaces
 interface Training {
@@ -28,18 +28,30 @@ export default function RecordAchievementForm({ trainings }: { trainings: Traini
     const trainingId = formData.get("trainingId") as string;
     const staffEmail = formData.get("staffEmail") as string;
     const certificateUrl = formData.get("certificateUrl") as string;
+    
+    /**
+     * SENIOR NOTE: In a production app, get this from your Auth Hook 
+     * (e.g., const { userId } = useAuth() from Clerk).
+     * For now, we extract it from the hidden input or a constant.
+     */
+    const userId = formData.get("userId") as string;
 
     try {
       const res = await fetch("/api/attendance", {
         method: "POST",
-        body: JSON.stringify({ trainingId, staffEmail, certificateUrl }),
+        // The body now includes userId to satisfy the Prisma 'connect' requirement
+        body: JSON.stringify({ 
+          trainingId: Number(trainingId), 
+          staffEmail, 
+          certificateUrl,
+          userId // <--- CRITICAL FIX
+        }),
         headers: { "Content-Type": "application/json" },
       });
 
       const result = await res.json();
 
       if (!res.ok) {
-        // Handle specific API error messages
         throw new Error(result.error || "Authorization failed");
       }
 
@@ -47,7 +59,6 @@ export default function RecordAchievementForm({ trainings }: { trainings: Traini
       (e.target as HTMLFormElement).reset(); 
       
     } catch (err) {
-      // 3. NO 'ANY' - We check the type of the error safely
       const errorMessage = err instanceof Error ? err.message : "An unexpected system error occurred";
       setStatus({ type: 'error', msg: errorMessage });
     } finally {
@@ -57,6 +68,9 @@ export default function RecordAchievementForm({ trainings }: { trainings: Traini
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6 max-w-xl bg-white p-8 rounded-[2rem] border border-slate-100 shadow-2xl">
+      {/* HIDDEN USER ID - Replace 'user_placeholder' with real ID logic later */}
+      <input type="hidden" name="userId" value="clz1234567890" />
+
       <div className="space-y-2">
         <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Target Personnel</label>
         <div className="relative">
