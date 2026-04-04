@@ -7,8 +7,10 @@ const prisma = new PrismaClient();
 // This defines exactly what a "Staff Record" looks like for TypeScript
 interface AttendeeRecord {
   id: number;
-  staffName: string;
-  staffEmail: string;
+  user: {
+    name: string;
+    email: string;
+  };
   certificateUrl: string | null;
 }
 
@@ -78,9 +80,9 @@ export default async function TrainingDetailPage({ params }: { params: Promise<{
                     <CheckCircle size={20} />
                   </div>
                   <div>
-                    <p className="font-bold text-slate-800 text-sm">{record.staffName}</p>
+                    <p className="font-bold text-slate-800 text-sm">{record.user.name}</p>
                     <p className="text-xs text-slate-400 flex items-center gap-1">
-                      <Mail size={12} /> {record.staffEmail}
+                      <Mail size={12} /> {record.user.email}
                     </p>
                   </div>
                 </div>
