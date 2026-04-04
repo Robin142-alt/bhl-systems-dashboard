@@ -1,18 +1,41 @@
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma"; // This pulls from our new "Global Connector"
-// JOB 1: SAVE A NEW RECORD (When you upload)
+import { prisma } from "@/lib/prisma";
+
+// JOB 1: SAVE A NEW RECORD (Linking User, Training, and Certificate)
 export async function POST(req: Request) {
   try {
-    const body = await req.json();
-    const { trainingId, staffEmail, certificateUrl } = body;
+    const { trainingId, staffEmail, certificateUrl } = await req.json();
 
+    // 1. Find the official User and Training records first
+    const [user, training] = await Promise.all([
+      prisma.user.findUnique({ where: { email: staffEmail } }),
+      prisma.training.findUnique({ where: { id: Number(trainingId) } })
+    ]);
+
+    // 2. Guard Clauses: If either doesn't exist, we can't create the link
+    if (!user) return NextResponse.json({ error: "Staff email not found" }, { status: 404 });
+    if (!training) return NextResponse.json({ error: "Training module not found" }, { status: 404 });
+
+    // 3. The Atomic Create: Save Attendance and Certificate at once
     const newRecord = await prisma.attendance.create({
       data: {
-        trainingId: Number(trainingId),
-        staffEmail,
+        trainingId: training.id,
+        userId: user.id, // <--- Correctly using the ID, not the email
         attended: true,
-        certificateUrl,
+        // If there is a URL, create a linked Certificate record automatically
+        certificate: certificateUrl ? {
+          create: {
+            certificateNo: `BHL-CERT-${Date.now()}`,
+            fileUrl: certificateUrl,
+            issueDate: new Date(),
+          }
+        } : undefined
       },
+      include: {
+        user: true,
+        training: true,
+        certificate: true
+      }
     });
 
     return NextResponse.json(newRecord);
@@ -22,28 +45,25 @@ export async function POST(req: Request) {
   }
 }
 
-// JOB 2: FIND RECORDS (When you search)
+// JOB 2: FIND RECORDS (Searching through the User relation)
 export async function GET(req: Request) {
   try {
     const { searchParams } = new URL(req.url);
-    const name = searchParams.get("name");
+    const query = searchParams.get("query"); // Renamed for clarity
 
-    if (!name) {
-      return NextResponse.json({ error: "Name is required" }, { status: 400 });
-    }
-
-    // This tells Prisma to find the attendance by a known field and include Training
     const records = await prisma.attendance.findMany({
-      where: {
-        staff: {
-          email: {
-            contains: name,
-            mode: 'insensitive'
-          }
+      where: query ? {
+        user: { // <--- Changed from 'staff' to 'user' to match schema
+          OR: [
+            { email: { contains: query, mode: 'insensitive' } },
+            { name: { contains: query, mode: 'insensitive' } }
+          ]
         }
-      },
+      } : {},
       include: {
-        training: true
+        user: true,
+        training: true,
+        certificate: true
       },
       orderBy: {
         createdAt: 'desc'
