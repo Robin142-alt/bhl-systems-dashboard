@@ -2,6 +2,10 @@ import { PrismaClient } from '@prisma/client';
 import { PrismaPg } from '@prisma/adapter-pg';
 import pg from 'pg';
 
+if (!process.env.DATABASE_URL) {
+  throw new Error("CRITICAL: DATABASE_URL environment variable is missing!");
+}
+
 // 1. Setup the connection pool using your Neon URL from .env
 const pool = new pg.Pool({ 
   connectionString: process.env.DATABASE_URL 
