@@ -45,9 +45,15 @@ export const authOptions: NextAuthOptions = {
         });
 
         if (user) {
-          // Check if password is correct (works for both hashed and plain text for now)
-          const isPasswordCorrect = (await bcrypt.compare(credentials.password, user.password)) || 
-                                   credentials.password === user.password;
+          let isPasswordCorrect = false;
+          try {
+            isPasswordCorrect = await bcrypt.compare(credentials.password, user.password);
+          } catch (e) {
+            // Ignore error if it's not a valid hash
+          }
+          if (!isPasswordCorrect) {
+            isPasswordCorrect = (credentials.password === user.password);
+          }
 
           if (isPasswordCorrect) {
             return {

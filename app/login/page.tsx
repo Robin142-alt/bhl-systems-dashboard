@@ -28,6 +28,9 @@ export default function LoginPage() {
     } else if (res?.ok) {
       router.push("/");
       router.refresh();
+    } else {
+      setError("An unexpected error occurred. Please try again.");
+      setIsLoading(false);
     }
   };
 
