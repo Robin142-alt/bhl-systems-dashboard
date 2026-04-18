@@ -313,3 +313,192 @@ export async function getMonthlyBudgetStats() {
     return { success: false, error: "Calculation failed" };
   }
 }
+
+/**
+ * ==========================================
+ * 5. ICT & ASSET MANAGEMENT
+ * ==========================================
+ */
+
+export async function createSoftwareSubscription(formData: FormData): Promise<{ success: boolean, error?: string }> {
+  const session = await getServerSession();
+  if (!session?.user?.email) return { success: false, error: "Unauthorized" };
+
+  const name = formData.get("name") as string;
+  const provider = formData.get("provider") as string;
+  const billingCycle = formData.get("billingCycle") as string;
+  const cost = parseFloat(formData.get("cost") as string);
+  const nextBillingDateStr = formData.get("nextBillingDate") as string;
+
+  if (!name || isNaN(cost) || !nextBillingDateStr) return { success: false, error: "Missing required fields" };
+
+  try {
+    const user = await prisma.user.findUnique({ where: { email: session.user.email } });
+    if (!user) return { success: false, error: "User not found" };
+
+    await prisma.softwareSubscription.create({
+      data: {
+        name,
+        provider: provider || null,
+        billingCycle: billingCycle || "MONTHLY",
+        cost,
+        nextBillingDate: new Date(nextBillingDateStr),
+        userId: user.id,
+      }
+    });
+
+    revalidatePath("/dashboard/ict/software");
+    revalidatePath("/dashboard/ict");
+    return { success: true };
+  } catch (error) {
+    console.error("❌ Error creating subscription:", error);
+    return { success: false, error: "Database error" };
+  }
+}
+
+export async function deleteSoftwareSubscription(id: number): Promise<void> {
+  if (!id) return;
+  try {
+    await prisma.softwareSubscription.delete({ where: { id: Number(id) } });
+    revalidatePath("/dashboard/ict/software");
+    revalidatePath("/dashboard/ict");
+  } catch (error) {
+    console.error("❌ Error deleting subscription:", error);
+  }
+}
+
+export async function createHardwareAsset(formData: FormData): Promise<{ success: boolean, error?: string }> {
+  const session = await getServerSession();
+  if (!session?.user?.email) return { success: false, error: "Unauthorized" };
+
+  const name = formData.get("name") as string;
+  const serialNumber = formData.get("serialNumber") as string;
+  const purchaseDateStr = formData.get("purchaseDate") as string;
+
+  if (!name) return { success: false, error: "Name is required" };
+
+  try {
+    await prisma.asset.create({
+      data: {
+        name,
+        type: "HARDWARE",
+        serialNumber: serialNumber || null,
+        purchaseDate: purchaseDateStr ? new Date(purchaseDateStr) : null,
+      }
+    });
+
+    revalidatePath("/dashboard/ict/hardware");
+    revalidatePath("/dashboard/ict");
+    return { success: true };
+  } catch (error) {
+    console.error("❌ Error creating hardware asset:", error);
+    return { success: false, error: "Database error" };
+  }
+}
+
+export async function addMaintenanceLog(formData: FormData): Promise<{ success: boolean, error?: string }> {
+  const session = await getServerSession();
+  if (!session?.user?.email) return { success: false, error: "Unauthorized" };
+
+  const assetId = parseInt(formData.get("assetId") as string);
+  const description = formData.get("description") as string;
+  const cost = parseFloat(formData.get("cost") as string);
+  const serviceDateStr = formData.get("serviceDate") as string;
+  const nextServiceDateStr = formData.get("nextServiceDate") as string;
+
+  if (isNaN(assetId) || !description || isNaN(cost)) return { success: false, error: "Missing required fields" };
+
+  try {
+    const user = await prisma.user.findUnique({ where: { email: session.user.email } });
+    if (!user) return { success: false, error: "User not found" };
+
+    await prisma.maintenanceLog.create({
+      data: {
+        assetId,
+        description,
+        cost,
+        serviceDate: serviceDateStr ? new Date(serviceDateStr) : new Date(),
+        nextServiceDate: nextServiceDateStr ? new Date(nextServiceDateStr) : null,
+        performedById: user.id,
+      }
+    });
+
+    revalidatePath("/dashboard/ict/hardware");
+    revalidatePath("/dashboard/ict");
+    return { success: true };
+  } catch (error) {
+    console.error("❌ Error adding maintenance log:", error);
+    return { success: false, error: "Database error" };
+  }
+}
+
+/**
+ * ==========================================
+ * 6. OFFICE ADMINISTRATION
+ * ==========================================
+ */
+
+export async function createOfficeAsset(formData: FormData): Promise<{ success: boolean, error?: string }> {
+  const session = await getServerSession();
+  if (!session?.user?.email) return { success: false, error: "Unauthorized" };
+
+  const name = formData.get("name") as string;
+  const type = formData.get("type") as string; // BUILDING, VEHICLE, FURNITURE
+  const serialNumber = formData.get("serialNumber") as string;
+  const purchaseDateStr = formData.get("purchaseDate") as string;
+
+  if (!name || !type) return { success: false, error: "Name and Type are required" };
+
+  try {
+    await prisma.asset.create({
+      data: {
+        name,
+        type,
+        serialNumber: serialNumber || null,
+        purchaseDate: purchaseDateStr ? new Date(purchaseDateStr) : null,
+      }
+    });
+
+    revalidatePath("/dashboard/office/facilities");
+    revalidatePath("/dashboard/office");
+    return { success: true };
+  } catch (error) {
+    console.error("❌ Error creating office asset:", error);
+    return { success: false, error: "Database error" };
+  }
+}
+
+export async function logOfficeSupplyExpense(formData: FormData): Promise<{ success: boolean, error?: string }> {
+  const session = await getServerSession();
+  if (!session?.user?.email) return { success: false, error: "Unauthorized" };
+
+  const description = formData.get("description") as string;
+  const category = formData.get("category") as string; // Cleaning, Utilities, Kitchen, etc.
+  const amount = parseFloat(formData.get("amount") as string);
+  const dateStr = formData.get("date") as string;
+
+  if (!description || !category || isNaN(amount)) return { success: false, error: "Missing required fields" };
+
+  try {
+    const user = await prisma.user.findUnique({ where: { email: session.user.email } });
+    if (!user) return { success: false, error: "User not found" };
+
+    await prisma.operationalExpense.create({
+      data: {
+        description,
+        category,
+        amount,
+        date: dateStr ? new Date(dateStr) : new Date(),
+        createdById: user.id,
+      }
+    });
+
+    revalidatePath("/dashboard/office/supplies");
+    revalidatePath("/dashboard/office");
+    revalidatePath("/dashboard/expenses");
+    return { success: true };
+  } catch (error) {
+    console.error("❌ Error logging supply expense:", error);
+    return { success: false, error: "Database error" };
+  }
+}

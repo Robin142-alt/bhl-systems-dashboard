@@ -6,19 +6,23 @@ export async function POST(req: Request) {
     const body = await req.json();
     const { name, category, officer, dueDate } = body;
 
-    const newRequirement = await prisma.requirement.create({
+    const newRequirement = await prisma.complianceItem.create({
       data: {
-        name,
+        title: name,
         category,
-        officer,
-        dueDate: new Date(dueDate),
+        responsible: officer,
+        deadline: new Date(dueDate),
+        status: "Pending",
       },
     });
 
     return NextResponse.json(newRequirement, { status: 201 });
-    } catch (error) {
-  // Now 'error' is used, so the warning disappears
-  console.error("Database Error:", error); 
-  return NextResponse.json({ error: "Failed to create requirement" }, { status: 500 });
-}
+
+  } catch (error) {
+    console.error("Database Error:", error);
+    return NextResponse.json(
+      { error: "Failed to create requirement" },
+      { status: 500 }
+    );
+  }
 }

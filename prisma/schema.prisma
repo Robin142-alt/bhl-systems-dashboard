@@ -24,36 +24,43 @@ model User {
   stockMovements       StockMovement[]
   tasks                Task[]
   createdTrainings     Training[]           @relation("UserCreatedTrainings")
+  softwareSubscriptions SoftwareSubscription[]
 }
 
 model Task {
-  id          Int      @id @default(autoincrement())
-  title       String
-  deadline    DateTime
-  frequency   String
-  responsible String
-  status      String   @default("Pending")
-  documentUrl String?
-  category    String
-  userId      Int
-  user        User     @relation(fields: [userId], references: [id])
+  id               Int      @id @default(autoincrement())
+  title            String
+  deadline         DateTime
+  frequency        String
+  responsible      String
+  status           String   @default("Pending")
+  documentUrl      String?
+  category         String
+  riskScore        String?  // "LOW", "MEDIUM", "HIGH"
+  aiPriorityIndex  Float?
+  aiTags           String[]
+  userId           Int
+  user             User     @relation(fields: [userId], references: [id])
 }
 
 model ComplianceItem {
-  id          Int      @id @default(autoincrement())
-  title       String
-  deadline    DateTime
-  frequency   String
-  responsible String
+  id               Int      @id @default(autoincrement())
+  title            String
+  deadline         DateTime
+  frequency        String
+  responsible      String
   remindDaysBefore Int?
-  status      String   @default("Pending")
-  documentUrl String?
-  category    String
-  notes       String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  userId      Int
-  user        User     @relation(fields: [userId], references: [id])
+  status           String   @default("Pending")
+  documentUrl      String?
+  category         String
+  notes            String?
+  riskScore        String?  // "LOW", "MEDIUM", "HIGH"
+  aiPriorityIndex  Float?
+  aiTags           String[]
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  userId           Int
+  user             User     @relation(fields: [userId], references: [id])
 }
 
 model Training {
@@ -177,6 +184,36 @@ model FinancialReport {
   generatedById   Int
   createdAt       DateTime @default(now())
   generatedBy     User     @relation(fields: [generatedById], references: [id])
+}
+
+model SoftwareSubscription {
+  id              Int      @id @default(autoincrement())
+  name            String
+  provider        String?
+  billingCycle    String   @default("MONTHLY") // e.g., "MONTHLY", "ANNUALLY"
+  cost            Float
+  nextBillingDate DateTime
+  status          String   @default("ACTIVE")
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  userId          Int
+  user            User     @relation(fields: [userId], references: [id])
+}
+
+model AiInsight {
+  id          Int      @id @default(autoincrement())
+  type        String   // "RISK", "EXPENSE_ANOMALY", "RECOMMENDATION"
+  message     String
+  severity    String   @default("INFO") // "INFO", "WARNING", "CRITICAL"
+  relatedId   Int?     // ID of related entity
+  createdAt   DateTime @default(now())
+}
+
+model UserBehaviorLog {
+  id          Int      @id @default(autoincrement())
+  userId      Int
+  action      String
+  timestamp   DateTime @default(now())
 }
 
 enum Role {

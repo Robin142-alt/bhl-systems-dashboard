@@ -10,13 +10,16 @@ import {
   Truck, 
   Activity,
   Award,
-  BookOpen 
+  BookOpen,
+  Cpu,
+  Briefcase
 } from "lucide-react";
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { signOut, SessionProvider, useSession } from "next-auth/react";
 import { Toaster } from "sonner";
+import AiAssistant from "@/components/AiAssistant";
 
 // --- SMART HEADER COMPONENT ---
 function SmartHeader() {
@@ -83,6 +86,12 @@ function SidebarContent() {
           <span className="font-bold text-sm">Dashboard</span>
         </Link>
 
+        {/* --- ADDED OFFICE ADMIN LINK --- */}
+        <Link href="/dashboard/office" className={navLinkClass("/dashboard/office")}>
+          <Briefcase size={20} />
+          <span className="font-bold text-sm">Office Admin</span>
+        </Link>
+
         {/* --- ADDED TRAINING LINK HERE --- */}
         <Link href="/dashboard/training" className={navLinkClass("/dashboard/training")}>
           <BookOpen size={20} />
@@ -120,6 +129,15 @@ function SidebarContent() {
             </Link>
           </>
         )}
+
+        <p className="text-[10px] font-black text-slate-600 uppercase px-4 mt-8 mb-3 tracking-[0.2em]">Technology & Systems</p>
+        
+        {(userRole === "ADMIN" || userRole === "OPERATIONS_MANAGER" || userRole === "HR") && (
+          <Link href="/dashboard/ict" className={navLinkClass("/dashboard/ict")}>
+            <Cpu size={20} />
+            <span className="font-bold text-sm">ICT Hub</span>
+          </Link>
+        )}
       </nav>
 
       <div className="p-4 border-t border-slate-800/50 space-y-4 bg-[#020617]">
@@ -145,25 +163,32 @@ function SidebarContent() {
 
 // --- MAIN LAYOUT WRAPPER ---
 export default function RootLayout({ children }: { children: React.ReactNode }) {
+  const pathname = usePathname();
+  const isAuthPage = pathname === "/login";
+
   return (
     <html lang="en" className="scroll-smooth" data-scroll-behavior="smooth">
       <body className="antialiased overflow-x-hidden transition-colors duration-300 min-h-screen
         bg-[#f8fafc] dark:bg-[#020617] 
         text-slate-900 dark:text-slate-100">
         <SessionProvider> 
-          <div className="flex min-h-screen">
-            <SidebarContent />
-            
-            {/* Main Content Area */}
-            <div className="flex-grow ml-64 min-h-screen transition-all duration-300">
-              <div className="max-w-[1600px] mx-auto p-8">
-                <SmartHeader /> 
-                <main className="animate-in fade-in slide-in-from-bottom-2 duration-500 ease-out">
-                  {children}
-                </main>
+          {isAuthPage ? (
+            <main className="min-h-screen bg-[#020617]">{children}</main>
+          ) : (
+            <div className="flex min-h-screen">
+              <SidebarContent />
+              
+              {/* Main Content Area */}
+              <div className="flex-grow ml-64 min-h-screen transition-all duration-300">
+                <div className="max-w-[1600px] mx-auto p-8">
+                  <SmartHeader /> 
+                  <main className="animate-in fade-in slide-in-from-bottom-2 duration-500 ease-out">
+                    {children}
+                  </main>
+                </div>
               </div>
             </div>
-          </div>
+          )}
 
           <Toaster 
             position="top-right" 
@@ -179,6 +204,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               },
             }}
           />
+          {!isAuthPage && <AiAssistant />}
         </SessionProvider>
       </body>
     </html>
