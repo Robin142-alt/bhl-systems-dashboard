@@ -46,7 +46,7 @@ export const authOptions: NextAuthOptions = {
 
         if (user) {
           // Check if password is correct (works for both hashed and plain text for now)
-          const isPasswordCorrect = bcrypt.compareSync(credentials.password, user.password) || 
+          const isPasswordCorrect = (await bcrypt.compare(credentials.password, user.password)) || 
                                    credentials.password === user.password;
 
           if (isPasswordCorrect) {
