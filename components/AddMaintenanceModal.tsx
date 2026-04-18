@@ -1,9 +1,9 @@
 "use client";
 
-import { useState } from "react";
-import { addMaintenanceLog } from "@/app/lib/actions/maintenance";
-import { X, Loader2, Wrench } from "lucide-react"; // Removed 'Calendar'
+import { addMaintenanceLog } from "@/app/actions";
+import { X, Loader2, Wrench } from "lucide-react"; 
 import { Asset, Vendor } from "@prisma/client";
+import { useFormStatus } from "react-dom";
 
 interface Props {
   isOpen: boolean;
@@ -12,28 +12,17 @@ interface Props {
   vendors: Vendor[];
 }
 
+function SubmitButton() {
+  const { pending } = useFormStatus();
+  return (
+    <button disabled={pending} type="submit" className="w-full bg-amber-600 text-white font-bold py-4 rounded-xl hover:bg-amber-700 transition-all shadow-lg flex items-center justify-center gap-2 mt-4">
+      {pending ? <Loader2 className="animate-spin" /> : "Save Maintenance Record"}
+    </button>
+  );
+}
+
 export default function AddMaintenanceModal({ isOpen, onClose, assets, vendors }: Props) {
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
   if (!isOpen) return null;
-
-  async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setLoading(true);
-    setError(null);
-
-    const formData = new FormData(event.currentTarget);
-    const result = await addMaintenanceLog(formData);
-
-    if (result?.error) {
-      setError(result.error);
-      setLoading(false);
-    } else {
-      setLoading(false);
-      onClose();
-    }
-  }
 
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
@@ -46,9 +35,7 @@ export default function AddMaintenanceModal({ isOpen, onClose, assets, vendors }
           <button onClick={onClose} className="hover:opacity-70 text-white"><X size={24} /></button>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-6 space-y-4">
-          {error && <p className="text-red-500 text-sm bg-red-50 p-3 rounded border border-red-100">{error}</p>}
-          
+        <form action={addMaintenanceLog} className="p-6 space-y-4">
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Select Asset</label>
@@ -82,9 +69,7 @@ export default function AddMaintenanceModal({ isOpen, onClose, assets, vendors }
             <textarea name="description" required rows={3} className="w-full px-4 py-2.5 border rounded-xl outline-none focus:ring-2 focus:ring-amber-500 resize-none" placeholder="e.g. Changed oil, replaced oil filter and rotated tires." />
           </div>
 
-          <button disabled={loading} className="w-full bg-amber-600 text-white font-bold py-4 rounded-xl hover:bg-amber-700 transition-all shadow-lg flex items-center justify-center gap-2 mt-4">
-            {loading ? <Loader2 className="animate-spin" /> : "Save Maintenance Record"}
-          </button>
+          <SubmitButton />
         </form>
       </div>
     </div>

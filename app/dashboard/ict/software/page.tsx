@@ -77,7 +77,7 @@ export default async function SoftwareSubscriptionsPage() {
         <div>
           <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-100 dark:border-slate-800 shadow-sm p-6 sticky top-6">
             <h2 className="text-xl font-black text-slate-900 dark:text-white mb-6">Add Subscription</h2>
-            <form action={createSoftwareSubscription} className="space-y-4">
+            <form action={async (formData) => { "use server"; await createSoftwareSubscription(formData); }} className="space-y-4">
               <div>
                 <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-2">Software/Service Name</label>
                 <input 

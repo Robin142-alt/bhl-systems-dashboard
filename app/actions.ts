@@ -5,6 +5,7 @@ import { getServerSession } from "next-auth";
 import { prisma } from "@/lib/prisma"; 
 import { TrainingStatus, Role } from "@prisma/client";
 import { startOfMonth, endOfMonth, addDays } from "date-fns";
+import { redirect } from "next/navigation";
 
 /**
  * ==========================================
@@ -31,10 +32,10 @@ export async function getComplianceOverview() {
       new Date(item.deadline) <= soon && item.status !== "Completed"
     );
 
-    return { success: true, data: items, alerts: upcomingDeadlines.length };
+    return { data: items, alerts: upcomingDeadlines.length };
   } catch (error) {
     console.error("📊 Dashboard Fetch Error:", error);
-    return { success: false, error: "Failed to fetch compliance overview" };
+    return { data: [], alerts: 0 };
   }
 }
 
@@ -105,9 +106,9 @@ export async function deleteComplianceItem(id: number): Promise<void> {
  * ==========================================
  */
 
-export async function createTrainingItem(formData: FormData) {
+export async function createTrainingItem(formData: FormData): Promise<void> {
   const session = await getServerSession();
-  if (!session?.user?.email) return { success: false, error: "Unauthorized" };
+  if (!session?.user?.email) redirect("/dashboard?error=Unauthorized");
 
   const title = formData.get("title") as string;
   const startDateStr = formData.get("startDate") as string;
@@ -115,44 +116,46 @@ export async function createTrainingItem(formData: FormData) {
   const location = formData.get("location") as string;
   const description = formData.get("description") as string;
   
-  if (!title || !startDateStr || !costKESStr) return { success: false, error: "Missing fields" };
+  if (!title || !startDateStr || !costKESStr) redirect("/dashboard?error=Missing+fields");
 
   const startDate = new Date(startDateStr);
   const costKES = Math.round(parseFloat(costKESStr));
 
-  // --- BUSINESS LOGIC: Enforce KES 5,000 Budget ---
   if (costKES > 5000) {
-    return { success: false, error: "Budget Exceeded: Maximum KES 5,000 per training." };
+    redirect("/dashboard?error=Budget+Exceeded");
   }
 
-  // --- BUSINESS LOGIC: Check April-June Window ---
-  const month = startDate.getMonth(); // 3 = April, 5 = June
-  const isCorrectWindow = month >= 3 && month <= 5;
-
+  let dbError = false;
   try {
     const dbUser = await prisma.user.findUnique({ where: { email: session.user.email } });
-    if (!dbUser || (dbUser.role !== "ADMIN" && dbUser.role !== "HR")) return { success: false, error: "Access Denied" };
-
-    await prisma.training.create({
-      data: {
-        title,
-        description: description || null,
-        startDate,
-        endDate: new Date(startDate.getTime() + (2 * 60 * 60 * 1000)), 
-        location: location || null,
-        costKES,
-        budgetKES: 5000,
-        status: "SCHEDULED" as TrainingStatus, 
-        createdById: dbUser.id, 
-      },
-    });
-    
-    revalidatePath("/");
-    revalidatePath("/dashboard"); 
-    return { success: true, warning: !isCorrectWindow ? "Note: Outside April-June window." : null };
+    if (!dbUser || (dbUser.role !== "ADMIN" && dbUser.role !== "HR")) {
+      dbError = true;
+    } else {
+      await prisma.training.create({
+        data: {
+          title,
+          description: description || null,
+          startDate,
+          endDate: new Date(startDate.getTime() + (2 * 60 * 60 * 1000)), 
+          location: location || null,
+          costKES,
+          budgetKES: 5000,
+          status: "SCHEDULED" as TrainingStatus, 
+          createdById: dbUser.id, 
+        },
+      });
+      revalidatePath("/");
+      revalidatePath("/dashboard"); 
+    }
   } catch (error) {
     console.error("❌ Error scheduling training:", error);
-    return { success: false, error: "Database error" };
+    dbError = true;
+  }
+
+  if (dbError) {
+    redirect("/dashboard?error=Database+error");
+  } else {
+    redirect("/dashboard?success=Training+created");
   }
 }
 
@@ -273,7 +276,7 @@ export async function deleteEmployee(id: number): Promise<void> {
 
 export async function getMonthlyBudgetStats() {
   const session = await getServerSession();
-  if (!session?.user?.email) return { success: false, error: "Unauthorized" };
+  if (!session?.user?.email) return { success: false, data: null };
 
   const firstDay = startOfMonth(new Date());
 
@@ -283,7 +286,6 @@ export async function getMonthlyBudgetStats() {
       _sum: { amount: true }
     });
 
-    // Detailed ICT Maintenance logic (Hardware vs Software)
     const logs = await prisma.maintenanceLog.findMany({
       where: { serviceDate: { gte: firstDay } },
       include: { asset: true }
@@ -310,7 +312,7 @@ export async function getMonthlyBudgetStats() {
     };
   } catch (error) {
     console.error("📊 Budget Error:", error);
-    return { success: false, error: "Calculation failed" };
+    return { success: false, data: null };
   }
 }
 
@@ -320,9 +322,9 @@ export async function getMonthlyBudgetStats() {
  * ==========================================
  */
 
-export async function createSoftwareSubscription(formData: FormData): Promise<{ success: boolean, error?: string }> {
+export async function createSoftwareSubscription(formData: FormData): Promise<void> {
   const session = await getServerSession();
-  if (!session?.user?.email) return { success: false, error: "Unauthorized" };
+  if (!session?.user?.email) redirect("/dashboard/ict/software?error=Unauthorized");
 
   const name = formData.get("name") as string;
   const provider = formData.get("provider") as string;
@@ -330,29 +332,36 @@ export async function createSoftwareSubscription(formData: FormData): Promise<{ 
   const cost = parseFloat(formData.get("cost") as string);
   const nextBillingDateStr = formData.get("nextBillingDate") as string;
 
-  if (!name || isNaN(cost) || !nextBillingDateStr) return { success: false, error: "Missing required fields" };
+  if (!name || isNaN(cost) || !nextBillingDateStr) redirect("/dashboard/ict/software?error=Missing+fields");
 
+  let dbError = false;
   try {
     const user = await prisma.user.findUnique({ where: { email: session.user.email } });
-    if (!user) return { success: false, error: "User not found" };
-
-    await prisma.softwareSubscription.create({
-      data: {
-        name,
-        provider: provider || null,
-        billingCycle: billingCycle || "MONTHLY",
-        cost,
-        nextBillingDate: new Date(nextBillingDateStr),
-        userId: user.id,
-      }
-    });
-
-    revalidatePath("/dashboard/ict/software");
-    revalidatePath("/dashboard/ict");
-    return { success: true };
+    if (!user) {
+      dbError = true;
+    } else {
+      await prisma.softwareSubscription.create({
+        data: {
+          name,
+          provider: provider || null,
+          billingCycle: billingCycle || "MONTHLY",
+          cost,
+          nextBillingDate: new Date(nextBillingDateStr),
+          userId: user.id,
+        }
+      });
+      revalidatePath("/dashboard/ict/software");
+      revalidatePath("/dashboard/ict");
+    }
   } catch (error) {
     console.error("❌ Error creating subscription:", error);
-    return { success: false, error: "Database error" };
+    dbError = true;
+  }
+
+  if (dbError) {
+    redirect("/dashboard/ict/software?error=Database+error");
+  } else {
+    redirect("/dashboard/ict/software?success=1");
   }
 }
 
@@ -367,16 +376,17 @@ export async function deleteSoftwareSubscription(id: number): Promise<void> {
   }
 }
 
-export async function createHardwareAsset(formData: FormData): Promise<{ success: boolean, error?: string }> {
+export async function createHardwareAsset(formData: FormData): Promise<void> {
   const session = await getServerSession();
-  if (!session?.user?.email) return { success: false, error: "Unauthorized" };
+  if (!session?.user?.email) redirect("/dashboard/ict/hardware?error=Unauthorized");
 
   const name = formData.get("name") as string;
   const serialNumber = formData.get("serialNumber") as string;
   const purchaseDateStr = formData.get("purchaseDate") as string;
 
-  if (!name) return { success: false, error: "Name is required" };
+  if (!name) redirect("/dashboard/ict/hardware?error=Name+required");
 
+  let dbError = false;
   try {
     await prisma.asset.create({
       data: {
@@ -389,16 +399,21 @@ export async function createHardwareAsset(formData: FormData): Promise<{ success
 
     revalidatePath("/dashboard/ict/hardware");
     revalidatePath("/dashboard/ict");
-    return { success: true };
   } catch (error) {
     console.error("❌ Error creating hardware asset:", error);
-    return { success: false, error: "Database error" };
+    dbError = true;
+  }
+
+  if (dbError) {
+    redirect("/dashboard/ict/hardware?error=Database+error");
+  } else {
+    redirect("/dashboard/ict/hardware?success=1");
   }
 }
 
-export async function addMaintenanceLog(formData: FormData): Promise<{ success: boolean, error?: string }> {
+export async function addMaintenanceLog(formData: FormData): Promise<void> {
   const session = await getServerSession();
-  if (!session?.user?.email) return { success: false, error: "Unauthorized" };
+  if (!session?.user?.email) redirect("/dashboard/ict/hardware?error=Unauthorized");
 
   const assetId = parseInt(formData.get("assetId") as string);
   const description = formData.get("description") as string;
@@ -406,29 +421,37 @@ export async function addMaintenanceLog(formData: FormData): Promise<{ success: 
   const serviceDateStr = formData.get("serviceDate") as string;
   const nextServiceDateStr = formData.get("nextServiceDate") as string;
 
-  if (isNaN(assetId) || !description || isNaN(cost)) return { success: false, error: "Missing required fields" };
+  if (isNaN(assetId) || !description || isNaN(cost)) redirect("/dashboard/ict/hardware?error=Missing+fields");
 
+  let dbError = false;
   try {
     const user = await prisma.user.findUnique({ where: { email: session.user.email } });
-    if (!user) return { success: false, error: "User not found" };
+    if (!user) {
+      dbError = true;
+    } else {
+      await prisma.maintenanceLog.create({
+        data: {
+          assetId,
+          description,
+          cost,
+          serviceDate: serviceDateStr ? new Date(serviceDateStr) : new Date(),
+          nextServiceDate: nextServiceDateStr ? new Date(nextServiceDateStr) : null,
+          performedById: user.id,
+        }
+      });
 
-    await prisma.maintenanceLog.create({
-      data: {
-        assetId,
-        description,
-        cost,
-        serviceDate: serviceDateStr ? new Date(serviceDateStr) : new Date(),
-        nextServiceDate: nextServiceDateStr ? new Date(nextServiceDateStr) : null,
-        performedById: user.id,
-      }
-    });
-
-    revalidatePath("/dashboard/ict/hardware");
-    revalidatePath("/dashboard/ict");
-    return { success: true };
+      revalidatePath("/dashboard/ict/hardware");
+      revalidatePath("/dashboard/ict");
+    }
   } catch (error) {
     console.error("❌ Error adding maintenance log:", error);
-    return { success: false, error: "Database error" };
+    dbError = true;
+  }
+
+  if (dbError) {
+    redirect("/dashboard/ict/hardware?error=Database+error");
+  } else {
+    redirect("/dashboard/ict/hardware?success=1");
   }
 }
 
@@ -438,17 +461,18 @@ export async function addMaintenanceLog(formData: FormData): Promise<{ success: 
  * ==========================================
  */
 
-export async function createOfficeAsset(formData: FormData): Promise<{ success: boolean, error?: string }> {
+export async function createOfficeAsset(formData: FormData): Promise<void> {
   const session = await getServerSession();
-  if (!session?.user?.email) return { success: false, error: "Unauthorized" };
+  if (!session?.user?.email) redirect("/dashboard/office/facilities?error=Unauthorized");
 
   const name = formData.get("name") as string;
   const type = formData.get("type") as string; // BUILDING, VEHICLE, FURNITURE
   const serialNumber = formData.get("serialNumber") as string;
   const purchaseDateStr = formData.get("purchaseDate") as string;
 
-  if (!name || !type) return { success: false, error: "Name and Type are required" };
+  if (!name || !type) redirect("/dashboard/office/facilities?error=Missing+fields");
 
+  let dbError = false;
   try {
     await prisma.asset.create({
       data: {
@@ -461,44 +485,57 @@ export async function createOfficeAsset(formData: FormData): Promise<{ success: 
 
     revalidatePath("/dashboard/office/facilities");
     revalidatePath("/dashboard/office");
-    return { success: true };
   } catch (error) {
     console.error("❌ Error creating office asset:", error);
-    return { success: false, error: "Database error" };
+    dbError = true;
+  }
+
+  if (dbError) {
+    redirect("/dashboard/office/facilities?error=Database+error");
+  } else {
+    redirect("/dashboard/office/facilities?success=1");
   }
 }
 
-export async function logOfficeSupplyExpense(formData: FormData): Promise<{ success: boolean, error?: string }> {
+export async function logOfficeSupplyExpense(formData: FormData): Promise<void> {
   const session = await getServerSession();
-  if (!session?.user?.email) return { success: false, error: "Unauthorized" };
+  if (!session?.user?.email) redirect("/dashboard/office/supplies?error=Unauthorized");
 
   const description = formData.get("description") as string;
-  const category = formData.get("category") as string; // Cleaning, Utilities, Kitchen, etc.
+  const category = formData.get("category") as string; 
   const amount = parseFloat(formData.get("amount") as string);
   const dateStr = formData.get("date") as string;
 
-  if (!description || !category || isNaN(amount)) return { success: false, error: "Missing required fields" };
+  if (!description || !category || isNaN(amount)) redirect("/dashboard/office/supplies?error=Missing+fields");
 
+  let dbError = false;
   try {
     const user = await prisma.user.findUnique({ where: { email: session.user.email } });
-    if (!user) return { success: false, error: "User not found" };
+    if (!user) {
+      dbError = true;
+    } else {
+      await prisma.operationalExpense.create({
+        data: {
+          description,
+          category,
+          amount,
+          date: dateStr ? new Date(dateStr) : new Date(),
+          createdById: user.id,
+        }
+      });
 
-    await prisma.operationalExpense.create({
-      data: {
-        description,
-        category,
-        amount,
-        date: dateStr ? new Date(dateStr) : new Date(),
-        createdById: user.id,
-      }
-    });
-
-    revalidatePath("/dashboard/office/supplies");
-    revalidatePath("/dashboard/office");
-    revalidatePath("/dashboard/expenses");
-    return { success: true };
+      revalidatePath("/dashboard/office/supplies");
+      revalidatePath("/dashboard/office");
+      revalidatePath("/dashboard/expenses");
+    }
   } catch (error) {
     console.error("❌ Error logging supply expense:", error);
-    return { success: false, error: "Database error" };
+    dbError = true;
+  }
+
+  if (dbError) {
+    redirect("/dashboard/office/supplies?error=Database+error");
+  } else {
+    redirect("/dashboard/office/supplies?success=1");
   }
 }
