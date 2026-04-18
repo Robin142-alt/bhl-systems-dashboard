@@ -4,7 +4,7 @@ import { prisma } from "@/lib/prisma";
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    const { name, category, officer, dueDate } = body;
+    const { name, category, officer, dueDate, frequency, userId } = body;
 
     const newRequirement = await prisma.complianceItem.create({
       data: {
@@ -13,6 +13,15 @@ export async function POST(req: Request) {
         responsible: officer,
         deadline: new Date(dueDate),
         status: "Pending",
+
+        // REQUIRED BY PRISMA SCHEMA
+        frequency: frequency ?? "MONTHLY",
+
+        user: {
+          connect: {
+            id: userId ?? 1, // fallback user
+          },
+        },
       },
     });
 
