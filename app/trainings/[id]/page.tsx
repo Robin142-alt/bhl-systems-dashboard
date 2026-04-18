@@ -1,8 +1,6 @@
-import { PrismaClient } from "@prisma/client";
+import { prisma } from "@/lib/prisma";
 import { Mail, Calendar, MapPin, ArrowLeft, CheckCircle, FileText, Printer } from "lucide-react";
 import Link from "next/link";
-
-const prisma = new PrismaClient();
 
 // This defines exactly what a "Staff Record" looks like for TypeScript
 interface AttendeeRecord {
