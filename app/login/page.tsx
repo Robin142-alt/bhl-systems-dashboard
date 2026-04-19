@@ -2,14 +2,12 @@
 import { useState } from "react";
 import { signIn } from "next-auth/react";
 import { ShieldCheck, Lock, Mail, AlertCircle, ArrowRight } from "lucide-react";
-import { useRouter } from "next/navigation";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-  const router = useRouter();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -17,7 +15,7 @@ export default function LoginPage() {
     setIsLoading(true);
 
     try {
-      // Race the signIn call against a 15-second timeout to prevent
+      // Race the signIn call against a 20-second timeout to prevent
       // the login from hanging indefinitely in production
       const res = await Promise.race([
         signIn("credentials", {
@@ -26,7 +24,7 @@ export default function LoginPage() {
           redirect: false,
         }),
         new Promise<never>((_, reject) =>
-          setTimeout(() => reject(new Error("timeout")), 15000)
+          setTimeout(() => reject(new Error("timeout")), 20000)
         ),
       ]);
 
@@ -34,13 +32,21 @@ export default function LoginPage() {
         setError("Invalid username or password. Please try again.");
         setIsLoading(false);
       } else if (res?.ok) {
-        router.push("/dashboard");
+        // Use a hard redirect instead of router.push() so the browser
+        // performs a full page load and the middleware correctly reads
+        // the newly-set session cookie from the response.
+        window.location.href = "/dashboard";
       } else {
         setError("An unexpected error occurred. Please try again.");
         setIsLoading(false);
       }
-    } catch {
-      setError("Connection timed out. Please check your network and try again.");
+    } catch (err) {
+      const isTimeout = err instanceof Error && err.message === "timeout";
+      setError(
+        isTimeout
+          ? "Login timed out — the server is taking too long. Please try again."
+          : "Connection error. Please check your network and try again."
+      );
       setIsLoading(false);
     }
   };
