@@ -30,6 +30,9 @@ declare module "next-auth/jwt" {
 // ----------------------------------------
 
 export const authOptions: NextAuthOptions = {
+  session: {
+    strategy: "jwt",
+  },
   providers: [
     CredentialsProvider({
       name: "Credentials",
@@ -38,31 +41,35 @@ export const authOptions: NextAuthOptions = {
         password: { label: "Password", type: "password" },
       },
       async authorize(credentials) {
-        if (!credentials?.email || !credentials?.password) return null;
-
-        const user = await prisma.user.findUnique({
-          where: { email: credentials.email },
-        });
-
-        if (user) {
-          let isPasswordCorrect = false;
-          try {
-            isPasswordCorrect = await bcrypt.compare(credentials.password, user.password);
-          } catch (e) {
-            // Ignore error if it's not a valid hash
-          }
-          if (!isPasswordCorrect) {
-            isPasswordCorrect = (credentials.password === user.password);
-          }
-
-          if (isPasswordCorrect) {
-            return {
-              id: user.id.toString(),
-              email: user.email,
-              role: user.role,
-            };
-          }
+        console.log('[AUTH] authorize called with email:', credentials?.email);
+        if (!credentials?.email || !credentials?.password) {
+          console.log('[AUTH] Missing credentials');
+          return null;
         }
+
+        try {
+          const user = await prisma.user.findUnique({
+            where: { email: credentials.email },
+          });
+
+          console.log('[AUTH] User found:', !!user, user ? `role=${user.role}` : '');
+
+          if (user) {
+            const isPasswordCorrect = await bcrypt.compare(credentials.password, user.password);
+            console.log('[AUTH] Password match:', isPasswordCorrect);
+
+            if (isPasswordCorrect) {
+              return {
+                id: user.id.toString(),
+                email: user.email,
+                role: user.role,
+              };
+            }
+          }
+        } catch (err) {
+          console.error('[AUTH] Error during authorize:', err);
+        }
+        
         return null;
       },
     }),

@@ -26,8 +26,7 @@ export default function LoginPage() {
       setError("Invalid username or password. Please try again.");
       setIsLoading(false);
     } else if (res?.ok) {
-      router.push("/");
-      router.refresh();
+      window.location.href = "/dashboard";
     } else {
       setError("An unexpected error occurred. Please try again.");
       setIsLoading(false);
@@ -102,7 +101,7 @@ export default function LoginPage() {
                 </div>
                 <input 
                   type="email" 
-                  placeholder="admin@bhl.co.ke" 
+                  placeholder="admin@bhl.com" 
                   className="w-full pl-11 pr-4 py-3.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 transition-all font-medium"
                   onChange={(e) => setEmail(e.target.value)}
                   disabled={isLoading}

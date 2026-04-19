@@ -167,8 +167,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   const isAuthPage = pathname === "/login";
 
   return (
-    <html lang="en" className="scroll-smooth" data-scroll-behavior="smooth">
-      <body className="antialiased overflow-x-hidden transition-colors duration-300 min-h-screen
+    <html lang="en" className="scroll-smooth" data-scroll-behavior="smooth" suppressHydrationWarning>
+      <body suppressHydrationWarning className="antialiased overflow-x-hidden transition-colors duration-300 min-h-screen
         bg-[#f8fafc] dark:bg-[#020617] 
         text-slate-900 dark:text-slate-100">
         <SessionProvider> 
