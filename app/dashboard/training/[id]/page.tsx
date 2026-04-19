@@ -1,25 +1,23 @@
 import { prisma } from "@/lib/prisma";
-import { Mail, Calendar, MapPin, ArrowLeft, CheckCircle, FileText, Printer } from "lucide-react";
+import { Mail, Calendar, MapPin, ArrowLeft, CheckCircle, FileText } from "lucide-react";
 import Link from "next/link";
+import PrintButton from "@/components/PrintButton";
 
-// This defines exactly what a "Staff Record" looks like for TypeScript
-interface AttendeeRecord {
-  id: number;
-  user: {
-    name: string;
-    email: string;
-  };
-  certificateUrl: string | null;
-}
+export const dynamic = 'force-dynamic';
 
 export default async function TrainingDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
 
-  // FETCH: Using 'attendees' to match your schema.prisma
+  // FETCH: Using 'attendees' with nested user relation for complete data
   const training = await prisma.training.findUnique({
     where: { id: Number(id) },
     include: {
-      attendees: true, 
+      attendees: {
+        include: {
+          user: true,
+          certificate: true,
+        }
+      }, 
     },
   });
 
@@ -30,16 +28,11 @@ export default async function TrainingDetailPage({ params }: { params: Promise<{
       
       {/* 1. TOP NAVIGATION & PRINT BUTTON */}
       <div className="flex justify-between items-center no-print">
-        <Link href="/trainings" className="flex items-center gap-2 text-slate-400 hover:text-blue-600 transition-colors font-bold text-sm">
+        <Link href="/dashboard/training" className="flex items-center gap-2 text-slate-400 hover:text-blue-600 transition-colors font-bold text-sm">
           <ArrowLeft size={16} /> Back to List
         </Link>
         
-        <button 
-          onClick={() => typeof window !== 'undefined' && window.print()} 
-          className="flex items-center gap-2 bg-white border border-slate-200 px-4 py-2 rounded-xl text-sm font-bold text-slate-600 hover:bg-slate-50 transition-all shadow-sm"
-        >
-          <Printer size={16} /> Print Attendance Sheet
-        </button>
+        <PrintButton />
       </div>
 
       {/* 2. HEADER CARD (Blue/Dark Section) */}
@@ -71,24 +64,24 @@ export default async function TrainingDetailPage({ params }: { params: Promise<{
               No staff members have been logged for this session yet.
             </div>
           ) : (
-            (training.attendees as unknown as AttendeeRecord[]).map((record) => (
+            training.attendees.map((record) => (
               <div key={record.id} className="flex items-center justify-between p-4 bg-slate-50 rounded-2xl border border-slate-100 print-row">
                 <div className="flex items-center gap-4">
                   <div className="bg-emerald-100 text-emerald-600 p-2 rounded-full">
                     <CheckCircle size={20} />
                   </div>
                   <div>
-                    <p className="font-bold text-slate-800 text-sm">{record.user.name}</p>
+                    <p className="font-bold text-slate-800 text-sm">{record.user?.name || 'Unknown'}</p>
                     <p className="text-xs text-slate-400 flex items-center gap-1">
-                      <Mail size={12} /> {record.user.email}
+                      <Mail size={12} /> {record.user?.email || 'N/A'}
                     </p>
                   </div>
                 </div>
                 
                 {/* CERTIFICATE LINK with FileText Icon */}
-                {record.certificateUrl && (
+                {record.certificate?.fileUrl && (
                   <a 
-                    href={record.certificateUrl} 
+                    href={record.certificate.fileUrl} 
                     target="_blank" 
                     rel="noreferrer"
                     className="no-print flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-blue-600 bg-blue-50 px-3 py-1 rounded-lg hover:bg-blue-600 hover:text-white transition-all"
@@ -103,7 +96,7 @@ export default async function TrainingDetailPage({ params }: { params: Promise<{
         </div>
       </div>
 
-      {/* 4. SECRET PRINT STYLES (Keeps the printout pretty) */}
+      {/* 4. PRINT STYLES */}
       <style dangerouslySetInnerHTML={{ __html: `
         @media print {
           .no-print { display: none !important; }
@@ -123,6 +116,6 @@ export default async function TrainingDetailPage({ params }: { params: Promise<{
         }
       `}} />
 
-    </div> // Final closing tag for the main container
+    </div>
   );
 }

@@ -3,6 +3,8 @@ import { Clock, CheckCircle2, ListChecks } from "lucide-react";
 import ComplianceTable from "@/components/ComplianceTable";
 import React from "react";
 
+export const dynamic = 'force-dynamic';
+
 // Define strict types for the StatCard component
 interface StatCardProps {
   icon: React.ReactNode;

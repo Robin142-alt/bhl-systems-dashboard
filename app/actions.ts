@@ -6,6 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { TrainingStatus, Role } from "@prisma/client";
 import { startOfMonth, endOfMonth, addDays } from "date-fns";
 import { redirect } from "next/navigation";
+import bcrypt from "bcryptjs";
 
 /**
  * ==========================================
@@ -241,12 +242,13 @@ export async function createEmployee(formData: FormData): Promise<void> {
     const admin = await prisma.user.findUnique({ where: { email: session.user.email } });
     if (!admin || (admin.role !== "ADMIN" && admin.role !== "HR")) return;
 
+    const hashedPassword = await bcrypt.hash("BHL-Temp-2026", 10);
     await prisma.user.create({
       data: {
         name,
         email,
         role,
-        password: "BHL-Temp-Password-2026", 
+        password: hashedPassword,
         isActive: true,
       },
     });

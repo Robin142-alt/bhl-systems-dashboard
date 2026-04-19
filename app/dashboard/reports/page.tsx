@@ -1,5 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { getMonthlyBudgetStats } from "@/app/actions";
+
+export const dynamic = 'force-dynamic';
 import RecordAchievementForm from "@/components/RecordAchievementForm";
 import PrintButton from "@/components/PrintButton";
 import { 

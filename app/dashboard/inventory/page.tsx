@@ -2,6 +2,8 @@ import { prisma } from "@/lib/prisma";
 import { Package, AlertCircle, ArrowUpRight, ArrowDownLeft, History, User as UserIcon } from "lucide-react";
 import InventoryClient from "@/components/InventoryClient";
 
+export const dynamic = 'force-dynamic';
+
 export default async function InventoryPage() {
   // Fetch Items and Movements in parallel for speed
   const [items, movements] = await Promise.all([

@@ -1,8 +1,15 @@
 import { NextResponse } from 'next/server';
 
-const AI_SERVICE_URL = process.env.AI_SERVICE_URL || 'http://127.0.0.1:8000';
-
 export async function POST(request: Request) {
+  const AI_SERVICE_URL = process.env.AI_SERVICE_URL;
+
+  // If no AI service is configured, return a graceful fallback
+  if (!AI_SERVICE_URL) {
+    return NextResponse.json({ 
+      reply: "AI service is not configured. Please set the AI_SERVICE_URL environment variable to enable AI features." 
+    });
+  }
+
   try {
     const body = await request.json();
     
@@ -16,15 +23,18 @@ export async function POST(request: Request) {
     });
 
     if (!response.ok) {
-      console.error("AI Service Error:", await response.text());
-      return NextResponse.json({ reply: "I'm sorry, I'm currently experiencing technical difficulties connecting to my neural network." }, { status: 500 });
+      return NextResponse.json({ 
+        reply: "I'm sorry, I'm currently experiencing technical difficulties connecting to my neural network." 
+      }, { status: 500 });
     }
 
     const data = await response.json();
     return NextResponse.json(data);
     
   } catch (error) {
-    console.error("Next.js AI Proxy Error:", error);
-    return NextResponse.json({ reply: "Error communicating with AI service." }, { status: 500 });
+    console.error("AI Proxy Error:", error);
+    return NextResponse.json({ 
+      reply: "AI service is temporarily unavailable. Please try again later." 
+    }, { status: 500 });
   }
 }

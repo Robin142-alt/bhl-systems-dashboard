@@ -2,6 +2,8 @@ import { Globe, Plus, Trash2, CalendarDays } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { createSoftwareSubscription, deleteSoftwareSubscription } from "@/app/actions";
 
+export const dynamic = 'force-dynamic';
+
 export default async function SoftwareSubscriptionsPage() {
   const subscriptions = await prisma.softwareSubscription.findMany({
     orderBy: { nextBillingDate: 'asc' }

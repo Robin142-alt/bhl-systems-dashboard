@@ -1,17 +1,22 @@
 import React from 'react';
 import { prisma } from "@/lib/prisma";
 import { notFound } from "next/navigation";
-import { Printer, ChevronLeft } from "lucide-react";
+import { ChevronLeft } from "lucide-react";
 import Link from "next/link";
+import PrintButton from "@/components/PrintButton";
+
+export const dynamic = 'force-dynamic';
 
 export default async function CertificatePage({ 
   params 
 }: { 
-  params: { certNo: string } 
+  params: Promise<{ certNo: string }> 
 }) {
+  const { certNo } = await params;
+
   // 1. Fetch Certificate with deep relations
   const cert = await prisma.certificate.findUnique({
-    where: { certificateNo: params.certNo },
+    where: { certificateNo: certNo },
     include: {
       attendance: {
         include: {
@@ -38,13 +43,7 @@ export default async function CertificatePage({
           <ChevronLeft size={16} /> Back to Training
         </Link>
         
-        {/* We use a simple CSS trick for printing instead of styled-jsx */}
-        <button 
-          onClickCapture={() => { if(typeof window !== 'undefined') window.print() }}
-          className="flex items-center gap-2 bg-blue-600 text-white px-6 py-2 rounded-full font-bold shadow-lg hover:bg-blue-700 transition-all active:scale-95"
-        >
-          <Printer size={18} /> Print Certificate
-        </button>
+        <PrintButton />
       </div>
 
       {/* 3. THE ACTUAL CERTIFICATE (The Printable Area) */}

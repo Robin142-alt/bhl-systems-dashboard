@@ -1,6 +1,8 @@
 import { prisma } from "@/lib/prisma";
 import { Mail, Briefcase, UserPlus } from "lucide-react";
 
+export const dynamic = 'force-dynamic';
+
 export default async function StaffPage() {
   // Fetch users from your database using the Prisma client we just fixed
   const staffMembers = await prisma.user.findMany({

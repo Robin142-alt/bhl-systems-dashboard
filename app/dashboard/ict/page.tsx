@@ -2,6 +2,8 @@ import Link from "next/link";
 import { Cpu, Server, Globe, MonitorSmartphone, Database, LayoutDashboard } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 
+export const dynamic = 'force-dynamic';
+
 export default async function ICTDashboardPage() {
   const hardwareCount = await prisma.asset.count({ where: { type: "HARDWARE" } });
   const softwareCount = await prisma.softwareSubscription.count();

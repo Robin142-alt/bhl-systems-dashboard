@@ -2,6 +2,8 @@ import { prisma } from "@/lib/prisma";
 import { Mail, Calendar, MapPin, ArrowLeft, CheckCircle, FileText, Printer } from "lucide-react";
 import Link from "next/link";
 
+export const dynamic = 'force-dynamic';
+
 // This defines exactly what a "Staff Record" looks like for TypeScript
 interface AttendeeRecord {
   id: number;

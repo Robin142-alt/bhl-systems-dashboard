@@ -2,6 +2,8 @@ import { prisma } from "@/lib/prisma";
 import { Calendar, Building2 } from "lucide-react";
 import ExpenseClient from "@/components/ExpenseClient";
 
+export const dynamic = 'force-dynamic';
+
 export default async function ExpensesPage() {
   const [expenses, vendors] = await Promise.all([
     prisma.operationalExpense.findMany({

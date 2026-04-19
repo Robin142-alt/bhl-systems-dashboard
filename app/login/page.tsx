@@ -16,19 +16,31 @@ export default function LoginPage() {
     setError("");
     setIsLoading(true);
 
-    const res = await signIn("credentials", {
-      email,
-      password,
-      redirect: false,
-    });
+    try {
+      // Race the signIn call against a 15-second timeout to prevent
+      // the login from hanging indefinitely in production
+      const res = await Promise.race([
+        signIn("credentials", {
+          email,
+          password,
+          redirect: false,
+        }),
+        new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error("timeout")), 15000)
+        ),
+      ]);
 
-    if (res?.error) {
-      setError("Invalid username or password. Please try again.");
-      setIsLoading(false);
-    } else if (res?.ok) {
-      window.location.href = "/dashboard";
-    } else {
-      setError("An unexpected error occurred. Please try again.");
+      if (res?.error) {
+        setError("Invalid username or password. Please try again.");
+        setIsLoading(false);
+      } else if (res?.ok) {
+        router.push("/dashboard");
+      } else {
+        setError("An unexpected error occurred. Please try again.");
+        setIsLoading(false);
+      }
+    } catch {
+      setError("Connection timed out. Please check your network and try again.");
       setIsLoading(false);
     }
   };

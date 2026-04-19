@@ -13,6 +13,9 @@ const nextConfig: NextConfig = {
       },
     ],
   },
+  // Production optimizations
+  poweredByHeader: false, // Don't expose "X-Powered-By: Next.js" header
+  reactStrictMode: true,
 };
 
 export default nextConfig;

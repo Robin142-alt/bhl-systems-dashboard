@@ -2,40 +2,64 @@ import { PrismaClient } from '@prisma/client';
 import { PrismaPg } from '@prisma/adapter-pg';
 import pg from 'pg';
 
-// Singleton pattern to prevent multiple instances during hot-reload in dev
-const globalForPrisma = globalThis as unknown as { prisma: PrismaClient | undefined };
+// Extend globalThis for the singleton across hot-reloads in dev
+const globalForPrisma = globalThis as unknown as {
+  _prisma: PrismaClient | undefined;
+};
 
 function createPrismaClient(): PrismaClient {
   if (!process.env.DATABASE_URL) {
     throw new Error('CRITICAL: DATABASE_URL environment variable is missing!');
   }
 
-  // Use the standard pg Pool — works in both local Node.js AND Vercel (serverless Node runtime)
   const pool = new pg.Pool({
     connectionString: process.env.DATABASE_URL,
-    // Allow self-signed certs on Neon's SSL endpoint
     ssl: { rejectUnauthorized: false },
+    // Serverless-optimized pool settings for Vercel
+    max: 5,              // Limit max connections (serverless functions share a small pool)
+    idleTimeoutMillis: 10000,  // Close idle connections quickly
+    connectionTimeoutMillis: 10000, // Don't wait too long for a connection
+  });
+
+  // Gracefully handle pool errors to prevent unhandled rejections
+  pool.on('error', (err) => {
+    console.error('[PRISMA] Unexpected pool error:', err.message);
   });
 
   type PrismaPgArgs = ConstructorParameters<typeof PrismaPg>[0];
   const adapter = new PrismaPg(pool as unknown as PrismaPgArgs);
 
-  return new PrismaClient({ adapter });
+  return new PrismaClient({
+    adapter,
+    log: process.env.NODE_ENV === 'development' ? ['warn', 'error'] : ['error'],
+  });
 }
 
-// Lazy getter — the client is created only when `prisma` is first accessed at
-// runtime, NOT when the module is imported during Next.js build / page collection.
+/**
+ * Returns the singleton PrismaClient, creating it on first call.
+ * Safe to call at build time — will only throw when actually invoked
+ * (not when the module is imported).
+ */
 function getPrisma(): PrismaClient {
-  if (!globalForPrisma.prisma) {
-    globalForPrisma.prisma = createPrismaClient();
+  if (!globalForPrisma._prisma) {
+    globalForPrisma._prisma = createPrismaClient();
   }
-  return globalForPrisma.prisma;
+  return globalForPrisma._prisma;
 }
 
-// Re-export as a Proxy so that any property access triggers lazy init
-export const prisma: PrismaClient = new Proxy({} as PrismaClient, {
-  get(_target, prop) {
-    return (getPrisma() as Record<string | symbol, unknown>)[prop];
+/**
+ * Lazy-initialised Prisma client.
+ *
+ * Exported as a Proxy so that the underlying PrismaClient is only created
+ * when a property is first accessed at runtime — NOT when the module is
+ * evaluated during Next.js build / page-data collection.
+ *
+ * All existing call-sites (`prisma.user.findMany(…)` etc.) keep working
+ * without any changes.
+ */
+export const prisma = new Proxy({} as PrismaClient, {
+  get(_target, prop, receiver) {
+    return Reflect.get(getPrisma(), prop, receiver);
   },
 });
 

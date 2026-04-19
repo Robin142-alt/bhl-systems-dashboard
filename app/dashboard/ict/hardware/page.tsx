@@ -2,6 +2,8 @@ import { Server, Plus, Settings2, Trash2 } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { createHardwareAsset } from "@/app/actions";
 
+export const dynamic = 'force-dynamic';
+
 export default async function HardwareAssetsPage() {
   const assets = await prisma.asset.findMany({
     where: { type: "HARDWARE" },

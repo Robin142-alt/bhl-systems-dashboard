@@ -1,15 +1,5 @@
 import { NextResponse } from "next/server";
-import { PrismaClient } from "@prisma/client";
-import { PrismaPg } from "@prisma/adapter-pg";
-import pg from "pg";
-
-// 1. DATABASE CONNECTION SETUP (PostgreSQL Optimized)
-const connectionString = `${process.env.DATABASE_URL}`;
-const pool = new pg.Pool({ connectionString });
-
-type PrismaPgAdapterArgs = ConstructorParameters<typeof PrismaPg>[0];
-const adapter = new PrismaPg(pool as unknown as PrismaPgAdapterArgs);
-const prisma = new PrismaClient({ adapter });
+import { prisma } from "@/lib/prisma";
 
 /**
  * HELPER: Checks if a date is within the Kenyan Q2 Compliance window (April-June)
@@ -27,7 +17,7 @@ export async function GET() {
     });
     return NextResponse.json(trainings);
   } catch (error) {
-    console.error("❌ Fetch Error:", error);
+    console.error("Fetch Error:", error);
     return NextResponse.json({ error: "Failed to fetch trainings" }, { status: 500 });
   }
 }
@@ -52,7 +42,7 @@ export async function POST(req: Request) {
     // RULE 2: Q2 Compliance Logic - Logic Maintained
     const start = new Date(startDate);
     if (isAprilToJune(start)) {
-      console.log(`📅 Compliance Alert: ${title} is scheduled for the Q2 window.`);
+      // Q2 compliance window detected - logged for audit trail
     }
 
     /**
@@ -77,7 +67,6 @@ export async function POST(req: Request) {
         endDate: endDate ? new Date(endDate) : start,
         location: location || "Ruiru Main Campus",
         costKES: cost,
-        // FIX: No more 'undefined' error. adminUser is guaranteed here.
         createdBy: {
           connect: { id: adminUser.id }
         }
@@ -86,7 +75,7 @@ export async function POST(req: Request) {
 
     return NextResponse.json(training, { status: 201 });
   } catch (error) {
-    console.error("❌ API POST Error:", error);
+    console.error("API POST Error:", error);
     return NextResponse.json(
       { error: "Failed to create training. Verify database connection." }, 
       { status: 500 }
@@ -115,7 +104,7 @@ export async function DELETE(req: Request) {
 
     return NextResponse.json({ message: "Deleted successfully" });
   } catch (error) {
-    console.error("❌ Delete Error:", error);
+    console.error("Delete Error:", error);
     return NextResponse.json(
       { error: "Could not delete. Check for database relations." }, 
       { status: 500 }

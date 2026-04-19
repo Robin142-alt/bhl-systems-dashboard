@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { writeFile } from "fs/promises";
+import { writeFile, mkdir } from "fs/promises";
 import path from "path";
 
 export async function POST(req: Request) {
@@ -17,17 +17,30 @@ export async function POST(req: Request) {
 
     // 2. Give the file a unique name so it doesn't get lost
     const uniqueName = `${Date.now()}-${file.name}`;
-    const filePath = path.join(process.cwd(), "public/uploads/certificates", uniqueName);
+    
+    // Use /tmp on Vercel (serverless has a writable /tmp directory)
+    const uploadDir = process.env.VERCEL 
+      ? path.join("/tmp", "uploads", "certificates")
+      : path.join(process.cwd(), "public", "uploads", "certificates");
 
-    // 3. Save it to the folder
+    // 3. Ensure the directory exists
+    await mkdir(uploadDir, { recursive: true });
+
+    // 4. Save the file
+    const filePath = path.join(uploadDir, uniqueName);
     await writeFile(filePath, buffer);
     
-    // 4. Send back the link so the database can remember it
-    const fileUrl = `/uploads/certificates/${uniqueName}`;
+    // 5. Send back the link
+    // Note: On Vercel, /tmp files are ephemeral. For production,
+    // consider using a cloud storage service (S3, Vercel Blob, etc.)
+    const fileUrl = process.env.VERCEL 
+      ? `/tmp/uploads/certificates/${uniqueName}` 
+      : `/uploads/certificates/${uniqueName}`;
+    
     return NextResponse.json({ fileUrl });
 
   } catch (error) {
     console.error("Upload error:", error);
-    return NextResponse.json({ error: "Upload failed" }, { status: 500 });
+    return NextResponse.json({ error: "Upload failed. File storage may not be available." }, { status: 500 });
   }
 }

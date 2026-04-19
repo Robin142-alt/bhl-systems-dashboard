@@ -2,6 +2,8 @@ import { Coffee, Plus, Calendar } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { logOfficeSupplyExpense } from "@/app/actions";
 
+export const dynamic = 'force-dynamic';
+
 export default async function OfficeSuppliesPage() {
   const suppliesCategories = ["Cleaning", "Toiletries", "Water & Beverages", "Electricity / Utilities", "Stationery", "Other Office Needs"];
 

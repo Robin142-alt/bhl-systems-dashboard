@@ -3,9 +3,7 @@ import CredentialsProvider from "next-auth/providers/credentials";
 import { prisma } from "@/lib/prisma";
 import bcrypt from "bcryptjs";
 
-
-
-// --- TEACHING THE COMPUTER NEW WORDS ---
+// --- TYPE AUGMENTATIONS ---
 // We define 'id' and 'role' so the app knows these exist on our users
 declare module "next-auth" {
   interface Session {
@@ -29,9 +27,12 @@ declare module "next-auth/jwt" {
 }
 // ----------------------------------------
 
+const isProduction = process.env.NODE_ENV === "production";
+
 export const authOptions: NextAuthOptions = {
   session: {
     strategy: "jwt",
+    maxAge: 30 * 24 * 60 * 60, // 30 days
   },
   providers: [
     CredentialsProvider({
@@ -41,9 +42,7 @@ export const authOptions: NextAuthOptions = {
         password: { label: "Password", type: "password" },
       },
       async authorize(credentials) {
-        console.log('[AUTH] authorize called with email:', credentials?.email);
         if (!credentials?.email || !credentials?.password) {
-          console.log('[AUTH] Missing credentials');
           return null;
         }
 
@@ -52,19 +51,16 @@ export const authOptions: NextAuthOptions = {
             where: { email: credentials.email },
           });
 
-          console.log('[AUTH] User found:', !!user, user ? `role=${user.role}` : '');
+          if (!user) return null;
 
-          if (user) {
-            const isPasswordCorrect = await bcrypt.compare(credentials.password, user.password);
-            console.log('[AUTH] Password match:', isPasswordCorrect);
+          const isPasswordCorrect = await bcrypt.compare(credentials.password, user.password);
 
-            if (isPasswordCorrect) {
-              return {
-                id: user.id.toString(),
-                email: user.email,
-                role: user.role,
-              };
-            }
+          if (isPasswordCorrect) {
+            return {
+              id: user.id.toString(),
+              email: user.email,
+              role: user.role,
+            };
           }
         } catch (err) {
           console.error('[AUTH] Error during authorize:', err);
@@ -84,12 +80,7 @@ export const authOptions: NextAuthOptions = {
     },
     async session({ session, token }) {
       if (session.user) {
-        // We use @ts-expect-error because NextAuth's default types are a bit stubborn
-        
-      
         session.user.id = token.id;     
-        
-      
         session.user.role = token.role as string; 
       }
       return session;
@@ -99,6 +90,21 @@ export const authOptions: NextAuthOptions = {
     signIn: "/login",
   },
   secret: process.env.NEXTAUTH_SECRET,
+  // Production-safe cookie settings for Vercel (HTTPS)
+  useSecureCookies: isProduction,
+  cookies: {
+    sessionToken: {
+      name: isProduction ? "__Secure-next-auth.session-token" : "next-auth.session-token",
+      options: {
+        httpOnly: true,
+        sameSite: "lax",
+        path: "/",
+        secure: isProduction,
+      },
+    },
+  },
+  // Only enable debug in development
+  debug: !isProduction,
 };
 
 const handler = NextAuth(authOptions);

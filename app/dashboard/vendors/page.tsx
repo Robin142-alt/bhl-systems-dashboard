@@ -2,6 +2,8 @@ import { prisma } from "@/lib/prisma";
 import { Phone, Tag, User } from "lucide-react";
 import VendorClient from "@/components/VendorClient"; // 👈 Import our new wrapper
 
+export const dynamic = 'force-dynamic';
+
 export default async function VendorsPage() {
   const vendors = await prisma.vendor.findMany({
     orderBy: { name: 'asc' },

@@ -2,6 +2,8 @@ import { Building2, Plus, Settings2, Wrench } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { createOfficeAsset, addMaintenanceLog } from "@/app/actions";
 
+export const dynamic = 'force-dynamic';
+
 export default async function FacilitiesAssetsPage() {
   const assets = await prisma.asset.findMany({
     where: { type: { in: ["BUILDING", "VEHICLE", "FURNITURE"] } },

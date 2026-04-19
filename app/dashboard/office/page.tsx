@@ -2,6 +2,8 @@ import Link from "next/link";
 import { Briefcase, Building2, Coffee, Settings, Receipt } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 
+export const dynamic = 'force-dynamic';
+
 export default async function OfficeAdminDashboard() {
   const facilityCount = await prisma.asset.count({
     where: { type: { in: ["BUILDING", "VEHICLE", "FURNITURE"] } }

@@ -49,7 +49,7 @@ export default function Dashboard() {
     try {
       const [compRes, trainRes] = await Promise.allSettled([
         axios.get("/api/compliance"),
-        axios.get("/api/training")
+        axios.get("/api/trainings")
       ]);
 
       if (compRes.status === 'fulfilled') setCompliance(compRes.value.data);
