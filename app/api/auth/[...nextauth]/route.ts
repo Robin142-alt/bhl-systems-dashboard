@@ -27,7 +27,6 @@ declare module "next-auth/jwt" {
 }
 // ----------------------------------------
 
-const isProduction = process.env.NODE_ENV === "production";
 
 export const authOptions: NextAuthOptions = {
   session: {
@@ -90,21 +89,10 @@ export const authOptions: NextAuthOptions = {
     signIn: "/login",
   },
   secret: process.env.NEXTAUTH_SECRET,
-  // Production-safe cookie settings for Vercel (HTTPS)
-  useSecureCookies: isProduction,
-  cookies: {
-    sessionToken: {
-      name: isProduction ? "__Secure-next-auth.session-token" : "next-auth.session-token",
-      options: {
-        httpOnly: true,
-        sameSite: "lax",
-        path: "/",
-        secure: isProduction,
-      },
-    },
-  },
-  // Only enable debug in development
-  debug: !isProduction,
+  // Let NextAuth manage cookies automatically — do NOT override the cookie
+  // name or useSecureCookies here. Custom overrides break withAuth() in
+  // middleware because getToken() looks for the default cookie name.
+  debug: process.env.NODE_ENV === "development",
 };
 
 const handler = NextAuth(authOptions);
