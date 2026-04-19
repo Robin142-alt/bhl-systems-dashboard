@@ -89,9 +89,12 @@ export const authOptions: NextAuthOptions = {
     signIn: "/login",
   },
   secret: process.env.NEXTAUTH_SECRET,
-  // Let NextAuth manage cookies automatically — do NOT override the cookie
-  // name or useSecureCookies here. Custom overrides break withAuth() in
-  // middleware because getToken() looks for the default cookie name.
+  // Mirror the secureCookie logic in middleware.ts exactly.
+  // VERCEL=1 is auto-injected on all Vercel deployments (prod + preview),
+  // ensuring the API route and middleware always agree on the cookie name:
+  //   Vercel  → __Secure-next-auth.session-token
+  //   Local   → next-auth.session-token
+  useSecureCookies: process.env.VERCEL === "1",
   debug: process.env.NODE_ENV === "development",
 };
 
