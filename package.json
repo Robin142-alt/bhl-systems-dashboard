@@ -10,8 +10,7 @@
     "db:push": "npx prisma db push",
     "db:seed": "npx prisma db seed",
     "db:migrate": "npx prisma migrate dev",
-    "db:studio": "npx prisma studio",
-    "postinstall": "prisma generate"
+    "db:studio": "npx prisma studio"
   },
   "dependencies": {
     "@neondatabase/serverless": "^1.1.0",
