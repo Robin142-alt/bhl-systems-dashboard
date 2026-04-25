@@ -1,31 +1,37 @@
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { ensureDefaultOrganization, ensureUserInOrganization } from "@/lib/organizations";
+import { createWorkItem, hydrateWorkItem } from "@/lib/work-items";
 
 export async function POST(req: Request) {
   try {
     const body = await req.json();
     const { name, category, officer, dueDate, frequency, userId } = body;
 
-    const newRequirement = await prisma.complianceItem.create({
-      data: {
-        title: name,
-        category,
-        responsible: officer,
-        deadline: new Date(dueDate),
-        status: "Pending",
+    const fallbackOrganization = await ensureDefaultOrganization();
+    const assignedUser = await ensureUserInOrganization(
+      Number(userId) || 1,
+      fallbackOrganization.id,
+    );
 
-        // REQUIRED BY PRISMA SCHEMA
-        frequency: frequency ?? "MONTHLY",
+    if (!assignedUser) {
+      return NextResponse.json(
+        { error: "Assigned user not found" },
+        { status: 404 },
+      );
+    }
 
-        user: {
-          connect: {
-            id: userId ?? 1, // fallback user
-          },
-        },
-      },
+    const newRequirement = await createWorkItem({
+      title: name,
+      category,
+      responsible: officer || assignedUser.name || assignedUser.email,
+      deadline: new Date(dueDate),
+      frequency: frequency ?? "MONTHLY",
+      remindDaysBefore: 7,
+      organizationId: assignedUser.organizationId,
+      userId: assignedUser.id,
     });
 
-    return NextResponse.json(newRequirement, { status: 201 });
+    return NextResponse.json(hydrateWorkItem(newRequirement), { status: 201 });
 
   } catch (error) {
     console.error("Database Error:", error);

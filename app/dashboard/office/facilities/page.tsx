@@ -1,6 +1,6 @@
 import { Building2, Plus, Settings2, Wrench } from "lucide-react";
 import { prisma } from "@/lib/prisma";
-import { createOfficeAsset, addMaintenanceLog } from "@/app/actions";
+import { createOfficeAsset } from "@/app/actions";
 
 export const dynamic = 'force-dynamic';
 

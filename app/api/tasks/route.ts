@@ -1,14 +1,9 @@
 import { NextResponse } from "next/server"; // Note: Changed to 'next/server'
-import { prisma } from "@/lib/prisma";
+import { listAllHydratedWorkItems } from "@/lib/work-items";
 
 export async function GET() {
   try {
-    // 1. Go to Neon database and find all tasks
-    const tasks = await prisma.task.findMany({
-      orderBy: {
-        deadline: 'asc',
-      },
-    });
+    const tasks = await listAllHydratedWorkItems();
 
     // 2. Use NextResponse to send the data back to the Dashboard
     return NextResponse.json(tasks);

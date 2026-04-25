@@ -12,7 +12,15 @@ import {
   Award,
   BookOpen,
   Cpu,
-  Briefcase
+  Bot,
+  Briefcase,
+  ListChecks,
+  RefreshCcw,
+  Users,
+  ClipboardCheck,
+  Building2,
+  Inbox,
+  FolderKanban
 } from "lucide-react";
 import Link from "next/link";
 import Image from "next/image";
@@ -86,6 +94,11 @@ function SidebarContent() {
           <span className="font-bold text-sm">Dashboard</span>
         </Link>
 
+        <Link href="/tasks" className={navLinkClass("/tasks")}>
+          <ListChecks size={20} />
+          <span className="font-bold text-sm">My Tasks</span>
+        </Link>
+
         {/* --- ADDED OFFICE ADMIN LINK --- */}
         <Link href="/dashboard/office" className={navLinkClass("/dashboard/office")}>
           <Briefcase size={20} />
@@ -100,6 +113,10 @@ function SidebarContent() {
 
         {(userRole === "ADMIN" || userRole === "HR" || userRole === "OPERATIONS_MANAGER") && (
           <>
+            <Link href="/staff" className={navLinkClass("/staff")}>
+              <Users size={20} />
+              <span className="font-bold text-sm">Staff Directory</span>
+            </Link>
             <Link href="/history" className={navLinkClass("/history")}>
               <Award size={20} />
               <span className="font-bold text-sm">Staff Records</span>
@@ -113,11 +130,38 @@ function SidebarContent() {
 
         <p className="text-[10px] font-black text-slate-600 uppercase px-4 mt-8 mb-3 tracking-[0.2em]">Strategy & Finance</p>
         
-        {(userRole === "ADMIN" || userRole === "ACCOUNTANT" || userRole === "HR") && (
+        {(userRole === "ADMIN" ||
+          userRole === "ACCOUNTANT" ||
+          userRole === "HR" ||
+          userRole === "OPERATIONS_MANAGER") && (
           <>
             <Link href="/dashboard/reports" className={navLinkClass("/dashboard/reports")}>
               <PieChart size={20} />
               <span className="font-bold text-sm">Budget Reports</span>
+            </Link>
+            <Link href="/dashboard/decisions" className={navLinkClass("/dashboard/decisions")}>
+              <ClipboardCheck size={20} />
+              <span className="font-bold text-sm">Decision Ops</span>
+            </Link>
+            <Link href="/dashboard/intake" className={navLinkClass("/dashboard/intake")}>
+              <Inbox size={20} />
+              <span className="font-bold text-sm">Intake Inbox</span>
+            </Link>
+            <Link href="/dashboard/portfolio" className={navLinkClass("/dashboard/portfolio")}>
+              <Building2 size={20} />
+              <span className="font-bold text-sm">Portfolio</span>
+            </Link>
+            <Link href="/dashboard/documents" className={navLinkClass("/dashboard/documents")}>
+              <FolderKanban size={20} />
+              <span className="font-bold text-sm">Document Registry</span>
+            </Link>
+            <Link href="/dashboard/copilot" className={navLinkClass("/dashboard/copilot")}>
+              <Bot size={20} />
+              <span className="font-bold text-sm">Copilot Quality</span>
+            </Link>
+            <Link href="/dashboard/cutover" className={navLinkClass("/dashboard/cutover")}>
+              <RefreshCcw size={20} />
+              <span className="font-bold text-sm">Legacy Cutover</span>
             </Link>
             <Link href="/dashboard/vendors" className={navLinkClass("/dashboard/vendors")}>
               <Truck size={20} />

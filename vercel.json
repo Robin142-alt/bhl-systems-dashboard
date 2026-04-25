@@ -3,5 +3,27 @@
   "framework": "nextjs",
   "buildCommand": "prisma generate && next build",
   "installCommand": "npm install",
-  "regions": ["fra1"]
+  "regions": ["fra1"],
+  "crons": [
+    {
+      "path": "/api/ops/process",
+      "schedule": "0 5 * * 1-5"
+    },
+    {
+      "path": "/api/ops/process",
+      "schedule": "0 9 * * 1-5"
+    },
+    {
+      "path": "/api/notifications/whatsapp/run",
+      "schedule": "0 6 * * 1-5"
+    },
+    {
+      "path": "/api/notifications/whatsapp/run",
+      "schedule": "0 10 * * 1-5"
+    },
+    {
+      "path": "/api/health",
+      "schedule": "0 4 * * 1-5"
+    }
+  ]
 }

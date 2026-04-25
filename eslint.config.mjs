@@ -12,6 +12,11 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Local scratch / diagnostics (kept out of production logic):
+    "scratch.js",
+    "out.txt",
+    ".codex-build.log",
+    "prisma/migrations_legacy/**",
   ]),
 ]);
 

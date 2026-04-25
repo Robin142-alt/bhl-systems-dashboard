@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Cpu, Server, Globe, MonitorSmartphone, Database, LayoutDashboard } from "lucide-react";
+import { Cpu, Server, Globe, MonitorSmartphone, Database } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 
 export const dynamic = 'force-dynamic';

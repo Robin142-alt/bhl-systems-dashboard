@@ -1,10 +1,11 @@
 "use client";
 
 import { useEffect, useState, useCallback, useMemo } from "react";
+import Link from "next/link";
 import axios from "axios";
 import AddTrainingModal from "@/components/AddTrainingModal";
 import AddComplianceModal from "@/components/AddComplianceModal";
-import { markAsCompleted, deleteComplianceItem } from "@/app/actions";
+import { deleteComplianceItem } from "@/app/actions";
 
 // 1. DATA INTERFACES
 interface ComplianceItem {
@@ -14,6 +15,14 @@ interface ComplianceItem {
   status: string;
   responsible: string;
   category: string;
+  workflow?: {
+    blocker?: {
+      label: string;
+      reason: string;
+      waitingOn?: string;
+      needsManagerHelp: boolean;
+    };
+  };
 }
 
 interface Training {
@@ -36,12 +45,18 @@ export default function Dashboard() {
   const stats = useMemo(() => {
     return {
       total: compliance.length,
-      pending: compliance.filter(item => item.status !== "Completed").length,
-      completed: compliance.filter(item => item.status === "Completed").length,
+      pending: compliance.filter(item => item.status !== "Approved" && item.status !== "Completed").length,
+      completed: compliance.filter(item => item.status === "Approved" || item.status === "Completed").length,
+      blocked: compliance.filter(item => item.workflow?.blocker).length,
       trainingCount: trainings.length,
       totalTrainingSpend: trainings.reduce((sum, t) => sum + (Number(t.costKES) || 0), 0)
     };
   }, [compliance, trainings]);
+
+  const blockedItems = useMemo(
+    () => compliance.filter((item) => item.workflow?.blocker).slice(0, 4),
+    [compliance],
+  );
 
   // 3. FETCH DATA (Using allSettled to ensure one failure doesn't crash the whole dashboard)
   const fetchData = useCallback(async () => {
@@ -67,16 +82,6 @@ export default function Dashboard() {
   }, [fetchData]);
 
   // 4. ACTION HANDLERS
-  const handleComplete = async (id: number) => {
-    try {
-      await markAsCompleted(id);
-      await fetchData(); 
-    } catch (err) {
-      console.error("Update failed:", err);
-      alert("Failed to update status.");
-    }
-  };
-
   const handleDelete = async (id: number) => {
     if (confirm("Are you sure you want to delete this compliance item?")) {
       try {
@@ -108,7 +113,7 @@ export default function Dashboard() {
         </header>
 
         {/* SUMMARY STATS CARDS */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-10">
+        <div className="grid grid-cols-1 md:grid-cols-5 gap-6 mb-10">
           <div className="bg-white p-6 rounded-2xl shadow-sm border-l-4 border-blue-600 transition-transform hover:scale-105">
             <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Requirements</p>
             <h3 className="text-3xl font-bold text-slate-800">{loading ? "..." : stats.total}</h3>
@@ -120,6 +125,10 @@ export default function Dashboard() {
           <div className="bg-white p-6 rounded-2xl shadow-sm border-l-4 border-green-500 transition-transform hover:scale-105">
             <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Completed</p>
             <h3 className="text-3xl font-bold text-slate-800">{loading ? "..." : stats.completed}</h3>
+          </div>
+          <div className="bg-white p-6 rounded-2xl shadow-sm border-l-4 border-rose-500 transition-transform hover:scale-105">
+            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Blocked</p>
+            <h3 className="text-3xl font-bold text-slate-800">{loading ? "..." : stats.blocked}</h3>
           </div>
           <div className="bg-slate-900 p-6 rounded-2xl shadow-sm border-l-4 border-blue-400 transition-transform hover:scale-105">
             <p className="text-[10px] font-black text-slate-300 uppercase tracking-widest mb-1">Training Spend</p>
@@ -167,14 +176,20 @@ export default function Dashboard() {
                           </td>
                           <td className="px-6 py-5">
                             <span className={`px-3 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest ${
-                              item.status === 'Completed' ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'
+                              item.status === 'Approved' || item.status === 'Completed'
+                                ? 'bg-green-100 text-green-700'
+                                : item.status === 'Submitted'
+                                  ? 'bg-blue-100 text-blue-700'
+                                  : item.status === 'Rejected'
+                                    ? 'bg-rose-100 text-rose-700'
+                                    : 'bg-amber-100 text-amber-700'
                             }`}>
                               {item.status}
                             </span>
                           </td>
                           <td className="px-6 py-5">
                             <div className="flex justify-center gap-2">
-                              <button onClick={() => handleComplete(item.id)} className="p-2 hover:bg-green-50 rounded-lg transition-colors" title="Mark Done">✅</button>
+                              <Link href="/tasks" className="p-2 hover:bg-blue-50 rounded-lg transition-colors" title="Manage Task">Go</Link>
                               <button onClick={() => handleDelete(item.id)} className="p-2 hover:bg-red-50 rounded-lg transition-colors" title="Remove">🗑️</button>
                             </div>
                           </td>
@@ -216,6 +231,33 @@ export default function Dashboard() {
                   </div>
                 )) : (
                   !loading && <p className="text-center py-6 text-slate-300 font-bold text-xs italic">No upcoming sessions.</p>
+                )}
+              </div>
+            </div>
+
+            <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-rose-100">
+              <div className="flex justify-between items-center mb-6">
+                <h2 className="font-black text-slate-800 text-lg uppercase tracking-tight">Blocked Work</h2>
+                <Link href="/tasks" className="text-[10px] font-black uppercase tracking-widest text-rose-600 hover:text-rose-700">
+                  Open Queue
+                </Link>
+              </div>
+              <div className="space-y-4">
+                {blockedItems.length > 0 ? blockedItems.map((item) => (
+                  <div key={item.id} className="p-4 rounded-2xl border border-rose-100 bg-rose-50/60">
+                    <p className="text-sm font-black text-slate-800">{item.title}</p>
+                    <p className="mt-2 text-[10px] font-black uppercase tracking-widest text-rose-600">
+                      {item.workflow?.blocker?.label}
+                    </p>
+                    <p className="mt-2 text-xs text-slate-600">{item.workflow?.blocker?.reason}</p>
+                    {item.workflow?.blocker?.waitingOn ? (
+                      <p className="mt-2 text-[10px] font-bold uppercase tracking-widest text-slate-400">
+                        Waiting On: {item.workflow.blocker.waitingOn}
+                      </p>
+                    ) : null}
+                  </div>
+                )) : (
+                  !loading && <p className="text-center py-6 text-slate-300 font-bold text-xs italic">No active blockers right now.</p>
                 )}
               </div>
             </div>

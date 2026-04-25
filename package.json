@@ -2,19 +2,26 @@
   "name": "bhl-management-system",
   "version": "0.1.0",
   "private": true,
+  "engines": {
+    "node": ">=20.0.0"
+  },
   "scripts": {
     "dev": "next dev",
     "build": "prisma generate && next build",
     "start": "next start",
-    "lint": "next lint",
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit",
     "db:push": "npx prisma db push",
     "db:seed": "npx prisma db seed",
     "db:migrate": "npx prisma migrate dev",
+    "db:deploy": "npx prisma migrate deploy",
+    "db:baseline": "tsx scripts/baseline-production-db.ts",
     "db:studio": "npx prisma studio"
   },
   "dependencies": {
     "@prisma/adapter-pg": "^7.5.0",
     "@prisma/client": "^7.5.0",
+    "@vercel/blob": "^2.3.3",
     "autoprefixer": "^10.4.27",
     "axios": "^1.13.6",
     "bcryptjs": "^3.0.3",
@@ -24,6 +31,7 @@
     "next": "16.2.1",
     "next-auth": "^4.24.13",
     "nodemailer": "^7.0.13",
+    "pdf-parse": "^2.4.5",
     "pg": "^8.20.0",
     "postcss": "^8.5.8",
     "react": "19.2.4",

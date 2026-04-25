@@ -1,6 +1,7 @@
 "use server"; // 1. Always the first line for build success
 
 import { prisma } from "@/lib/prisma"; // 2. Use the shared client, NOT 'new PrismaClient()'
+import { listAllHydratedWorkItems } from "@/lib/work-items";
 
 export async function getDashboardStats() {
   try {
@@ -12,13 +13,9 @@ export async function getDashboardStats() {
 
     // 1. Fetch Critical Items (Due in 7 days or already Overdue)
     // Using the shared 'prisma' instance prevents connection leaks
-    const criticalItems = await prisma.complianceItem.findMany({
-      where: {
-        deadline: { lte: sevenDaysFromNow },
-        status: { not: 'Completed' }
-      },
-      orderBy: { deadline: 'asc' }
-    });
+    const criticalItems = (await listAllHydratedWorkItems())
+      .filter((item) => item.deadline <= sevenDaysFromNow && item.status !== "Completed")
+      .sort((left, right) => left.deadline.getTime() - right.deadline.getTime());
 
     // 2. Fetch Active Training Sessions
     const activeTrainings = await prisma.training.findMany({

@@ -1,46 +1,102 @@
-import { NextResponse } from "next/server";
-import { writeFile, mkdir } from "fs/promises";
-import path from "path";
+﻿import { NextResponse } from "next/server";
+import { getServerSession } from "next-auth";
+import { OpsEventTopic } from "@prisma/client";
+import { authOptions } from "@/app/api/auth/[...nextauth]/route";
+import { registerDocumentUpload } from "@/lib/document-registry";
+import { enqueueOpsEvent, processOpsEventById } from "@/lib/ops-events";
+import { ensureScopedUserByEmail } from "@/lib/organizations";
+import { prisma } from "@/lib/prisma";
+
+export const runtime = "nodejs";
 
 export async function POST(req: Request) {
   try {
-    const data = await req.formData();
-    const file: File | null = data.get("file") as unknown as File;
+    const session = await getServerSession(authOptions);
 
-    if (!file) {
-      return NextResponse.json({ error: "No file uploaded" }, { status: 400 });
+    if (!session?.user?.email) {
+      return NextResponse.json({ error: "Sign in before uploading files." }, { status: 401 });
     }
 
-    // 1. Turn the file into a format the computer can save
+    const currentUser = await ensureScopedUserByEmail(session.user.email);
+
+    if (!currentUser) {
+      return NextResponse.json({ error: "Sign in before uploading files." }, { status: 401 });
+    }
+
+    const data = await req.formData();
+    const file = data.get("file");
+    const existingDocumentIdValue = data.get("documentId");
+    const titleValue = data.get("title");
+    const sourceTypeValue = data.get("sourceType");
+    const folderValue = data.get("folder");
+
+    if (!(file instanceof File)) {
+      return NextResponse.json({ error: "No file uploaded." }, { status: 400 });
+    }
+
     const bytes = await file.arrayBuffer();
     const buffer = Buffer.from(bytes);
+    const existingDocumentId =
+      typeof existingDocumentIdValue === "string" && existingDocumentIdValue.trim().length > 0
+        ? Number(existingDocumentIdValue)
+        : null;
 
-    // 2. Give the file a unique name so it doesn't get lost
-    const uniqueName = `${Date.now()}-${file.name}`;
-    
-    // Use /tmp on Vercel (serverless has a writable /tmp directory)
-    const uploadDir = process.env.VERCEL 
-      ? path.join("/tmp", "uploads", "certificates")
-      : path.join(process.cwd(), "public", "uploads", "certificates");
+    if (existingDocumentId !== null) {
+      const existingDocument = await prisma.document.findFirst({
+        where: {
+          id: existingDocumentId,
+          archivedAt: null,
+          organizationId: currentUser.organizationId,
+        },
+        select: {
+          id: true,
+        },
+      });
 
-    // 3. Ensure the directory exists
-    await mkdir(uploadDir, { recursive: true });
+      if (!existingDocument) {
+        return NextResponse.json(
+          { error: "The selected document version chain could not be found." },
+          { status: 404 },
+        );
+      }
+    }
 
-    // 4. Save the file
-    const filePath = path.join(uploadDir, uniqueName);
-    await writeFile(filePath, buffer);
-    
-    // 5. Send back the link
-    // Note: On Vercel, /tmp files are ephemeral. For production,
-    // consider using a cloud storage service (S3, Vercel Blob, etc.)
-    const fileUrl = process.env.VERCEL 
-      ? `/tmp/uploads/certificates/${uniqueName}` 
-      : `/uploads/certificates/${uniqueName}`;
-    
-    return NextResponse.json({ fileUrl });
+    const registered = await registerDocumentUpload(prisma, {
+      buffer,
+      fileName: file.name,
+      mimeType: file.type || null,
+      folder: typeof folderValue === "string" ? folderValue : null,
+      title: typeof titleValue === "string" ? titleValue : null,
+      sourceType: typeof sourceTypeValue === "string" ? sourceTypeValue : "GENERAL",
+      organizationId: currentUser.organizationId,
+      ownerUserId: currentUser.id,
+      uploadedById: currentUser.id,
+      existingDocumentId,
+    });
 
+    const extractionEventId = await enqueueOpsEvent(prisma, {
+      topic: OpsEventTopic.DOCUMENT_EXTRACTION_REQUESTED,
+      dedupeKey: `extract:${registered.documentVersionId}`,
+      organizationId: currentUser.organizationId,
+      documentId: registered.documentId,
+      documentVersionId: registered.documentVersionId,
+    });
+    await processOpsEventById(extractionEventId);
+
+    return NextResponse.json({
+      fileUrl: registered.fileUrl,
+      fileName: registered.fileName,
+      documentId: registered.documentId,
+      documentVersionId: registered.documentVersionId,
+      versionNumber: registered.versionNumber,
+      extraction: registered.extraction,
+    });
   } catch (error) {
     console.error("Upload error:", error);
-    return NextResponse.json({ error: "Upload failed. File storage may not be available." }, { status: 500 });
+    return NextResponse.json(
+      { error: "Upload failed. The document registry could not save the file." },
+      { status: 500 },
+    );
   }
 }
+

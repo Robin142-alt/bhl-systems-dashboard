@@ -1,9 +1,11 @@
 import { prisma } from "@/lib/prisma";
 import { getMonthlyBudgetStats } from "@/app/actions";
+import { NotificationChannel } from "@prisma/client";
 
 export const dynamic = 'force-dynamic';
 import RecordAchievementForm from "@/components/RecordAchievementForm";
 import PrintButton from "@/components/PrintButton";
+import WhatsAppDeliveryDashboard from "@/components/WhatsAppDeliveryDashboard";
 import { 
   ClipboardCheck, 
   History, 
@@ -18,12 +20,50 @@ import Link from "next/link";
 
 export default async function RecordsPage() {
   // 1. DUAL FETCH: Get Financial Stats AND Training Modules
-  const [statsResult, trainings] = await Promise.all([
+  const [statsResult, trainings, notificationLogs] = await Promise.all([
     getMonthlyBudgetStats(),
     prisma.training.findMany({
       select: { id: true, title: true },
       orderBy: { title: 'asc' },
-    })
+    }),
+    prisma.notificationLog.findMany({
+      where: { channel: NotificationChannel.WHATSAPP },
+      take: 60,
+      orderBy: [{ createdAt: "desc" }],
+      select: {
+        id: true,
+        status: true,
+        stage: true,
+        recipient: true,
+        messagePreview: true,
+        errorMessage: true,
+        retryCount: true,
+        createdAt: true,
+        lastAttemptAt: true,
+        sentAt: true,
+        providerMessageId: true,
+        workItem: {
+          select: {
+            id: true,
+            title: true,
+            deadline: true,
+          },
+        },
+        complianceItem: {
+          select: {
+            id: true,
+            title: true,
+            deadline: true,
+          },
+        },
+        user: {
+          select: {
+            name: true,
+            email: true,
+          },
+        },
+      },
+    }),
   ]);
 
   // 2. DATA PREP: Handle fallback for financial data
@@ -107,6 +147,27 @@ export default async function RecordsPage() {
           <span className="text-amber-600">Maintenance ({maintPercent}%)</span>
         </div>
       </div>
+
+      <WhatsAppDeliveryDashboard
+        logs={notificationLogs.map((log) => ({
+          ...log,
+          createdAt: log.createdAt.toISOString(),
+          lastAttemptAt: log.lastAttemptAt?.toISOString() ?? null,
+          sentAt: log.sentAt?.toISOString() ?? null,
+          workItem: log.workItem
+            ? {
+                ...log.workItem,
+                deadline: log.workItem.deadline.toISOString(),
+              }
+            : null,
+          complianceItem: log.complianceItem
+            ? {
+                ...log.complianceItem,
+                deadline: log.complianceItem.deadline.toISOString(),
+              }
+            : null,
+        }))}
+      />
 
       {/* FORM SECTION */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 pt-4">

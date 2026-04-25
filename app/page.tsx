@@ -1,7 +1,8 @@
-import { prisma } from "@/lib/prisma";
 import { Clock, CheckCircle2, ListChecks } from "lucide-react";
 import ComplianceTable from "@/components/ComplianceTable";
 import React from "react";
+import { isClosedStatus } from "@/lib/compliance-workflow";
+import { listAllHydratedWorkItems } from "@/lib/work-items";
 
 export const dynamic = 'force-dynamic';
 
@@ -15,12 +16,10 @@ interface StatCardProps {
 }
 
 export default async function Home() {
-  const items = await prisma.complianceItem.findMany({
-    orderBy: { deadline: 'asc' }
-  });
+  const items = await listAllHydratedWorkItems();
 
-  const pendingCount = items.filter(i => i.status === "Pending").length;
-  const completedCount = items.filter(i => i.status === "Completed").length;
+  const pendingCount = items.filter((item) => !isClosedStatus(item.status)).length;
+  const completedCount = items.filter((item) => isClosedStatus(item.status)).length;
 
   return (
     <div className="space-y-10">

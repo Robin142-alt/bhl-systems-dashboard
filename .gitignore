@@ -46,8 +46,8 @@ next-env.d.ts
 
 # Prisma
 /app/generated/prisma
-/prisma/migrations/
 /generated
+prisma/migrations_legacy/
 
 # Scratch / diagnostic files (not for production)
 scratch.js
@@ -55,3 +55,9 @@ out.txt
 check-users.ts
 diagnose-login.ts
 reset-passwords.ts
+
+# Local private storage (document registry)
+.storage/
+
+# Codex artifacts
+.codex-build.log

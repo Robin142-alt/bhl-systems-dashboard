@@ -7,7 +7,7 @@ import type { NextRequest } from "next/server";
 // on the edge runtime to inspect the request URL scheme, which is unreliable.
 const isVercel = process.env.VERCEL === "1";
 
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   const token = await getToken({
     req: request,
     secret: process.env.NEXTAUTH_SECRET,

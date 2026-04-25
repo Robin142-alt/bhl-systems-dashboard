@@ -6,6 +6,43 @@ datasource db {
   provider = "postgresql"
 }
 
+model Organization {
+  id              Int              @id @default(autoincrement())
+  name            String
+  slug            String           @unique
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  users           User[]
+  tasks           Task[]
+  complianceItems ComplianceItem[]
+  workItems       WorkItem[]
+  clientEntities  ClientEntity[]
+  documents       Document[]
+  decisions       WorkDecision[]
+  opsEvents       OpsEvent[]
+  assistantTraces AssistantTrace[]
+}
+
+model ClientEntity {
+  id              Int              @id @default(autoincrement())
+  name            String
+  code            String?
+  isActive        Boolean          @default(true)
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  organizationId  Int
+  organization    Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  tasks           Task[]
+  complianceItems ComplianceItem[]
+  workItems       WorkItem[]
+  documents       Document[]
+  decisions       WorkDecision[]
+  opsEvents       OpsEvent[]
+
+  @@unique([organizationId, name])
+  @@index([organizationId, isActive])
+}
+
 model User {
   id                   Int                  @id @default(autoincrement())
   email                String               @unique
@@ -16,6 +53,12 @@ model User {
   name                 String?
   updatedAt            DateTime             @updatedAt
   isActive             Boolean              @default(true)
+  phoneNumber          String?
+  whatsappOptIn        Boolean              @default(false)
+  whatsappConsentAt    DateTime?
+  organizationId       Int?
+  organization         Organization?        @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+  notificationLogs     NotificationLog[]
   attendance           Attendance[]
   complianceItems      ComplianceItem[]
   financialReports     FinancialReport[]
@@ -23,44 +66,449 @@ model User {
   expenses             OperationalExpense[]
   stockMovements       StockMovement[]
   tasks                Task[]
+  workItems            WorkItem[]
+  completedWorkItemChecklistItems WorkItemChecklistItem[] @relation("WorkItemChecklistCompletedBy")
+  reportedWorkItemBlockers        WorkItemBlocker[]       @relation("WorkItemBlockedBy")
+  clearedWorkItemBlockers         WorkItemBlocker[]       @relation("WorkItemClearedBy")
+  respondedWorkItemBlockers       WorkItemBlocker[]       @relation("WorkItemBlockerManagerRespondedBy")
+  submittedWorkItemApprovals      WorkItemApproval[]      @relation("WorkItemSubmittedBy")
+  decidedWorkItemApprovals        WorkItemApproval[]      @relation("WorkItemDecidedBy")
+  respondedWorkItemApprovals      WorkItemApproval[]      @relation("WorkItemApprovalManagerRespondedBy")
+  uploadedWorkItemEvidence        WorkItemEvidence[]      @relation("WorkItemEvidenceUploadedBy")
+  workItemAuditEvents             WorkItemAuditEvent[]    @relation("WorkItemAuditActor")
+  ownedDocuments                  Document[]              @relation("DocumentOwnedBy")
+  uploadedDocumentVersions        DocumentVersion[]       @relation("DocumentVersionUploadedBy")
+  requestedDecisions              WorkDecision[]          @relation("WorkDecisionRequestedBy")
+  assignedDecisions               WorkDecision[]          @relation("WorkDecisionAssignedTo")
+  resolvedDecisions               WorkDecision[]          @relation("WorkDecisionResolvedBy")
+  decisionAuditEvents             WorkDecisionAuditEvent[] @relation("WorkDecisionAuditActor")
+  assistantTraces                 AssistantTrace[]
   createdTrainings     Training[]           @relation("UserCreatedTrainings")
   softwareSubscriptions SoftwareSubscription[]
+
+  @@index([organizationId, isActive])
 }
 
 model Task {
-  id               Int      @id @default(autoincrement())
+  id               Int           @id @default(autoincrement())
   title            String
   deadline         DateTime
   frequency        String
   responsible      String
-  status           String   @default("Pending")
+  status           String        @default("Pending")
   documentUrl      String?
   category         String
-  riskScore        String?  // "LOW", "MEDIUM", "HIGH"
+  riskScore        String?       // "LOW", "MEDIUM", "HIGH"
   aiPriorityIndex  Float?
   aiTags           String[]
+  organizationId   Int?
+  clientEntityId   Int?
   userId           Int
-  user             User     @relation(fields: [userId], references: [id])
+  archivedAt       DateTime?
+  organization     Organization? @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+  clientEntity     ClientEntity? @relation(fields: [clientEntityId], references: [id], onDelete: SetNull)
+  user             User          @relation(fields: [userId], references: [id])
+  workItem         WorkItem?     @relation("LegacyTask")
+
+  @@index([organizationId, deadline])
+  @@index([clientEntityId, deadline])
 }
 
 model ComplianceItem {
-  id               Int      @id @default(autoincrement())
+  id               Int              @id @default(autoincrement())
   title            String
   deadline         DateTime
   frequency        String
   responsible      String
   remindDaysBefore Int?
-  status           String   @default("Pending")
+  status           String           @default("Pending")
   documentUrl      String?
   category         String
   notes            String?
-  riskScore        String?  // "LOW", "MEDIUM", "HIGH"
+  workflowState    Json?
+  workflowVersion  Int              @default(2)
+  workflowUpdatedAt DateTime?
+  archivedAt       DateTime?
+  riskScore        String?          // "LOW", "MEDIUM", "HIGH"
   aiPriorityIndex  Float?
   aiTags           String[]
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+  organizationId   Int?
+  clientEntityId   Int?
   userId           Int
-  user             User     @relation(fields: [userId], references: [id])
+  organization     Organization?    @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+  clientEntity     ClientEntity?    @relation(fields: [clientEntityId], references: [id], onDelete: SetNull)
+  user             User             @relation(fields: [userId], references: [id])
+  notificationLogs NotificationLog[]
+  workItem         WorkItem?        @relation("LegacyComplianceItem")
+
+  @@index([organizationId, deadline])
+  @@index([clientEntityId, deadline])
+  @@index([status, deadline])
+}
+
+model WorkItem {
+  id                     Int                    @id @default(autoincrement())
+  title                  String
+  deadline               DateTime
+  frequency              String
+  responsible            String
+  remindDaysBefore       Int?
+  status                 String                 @default("Pending")
+  category               String
+  requiredDocumentLabel  String
+  archivedAt             DateTime?
+  riskScore              String?
+  aiPriorityIndex        Float?
+  aiTags                 String[]
+  createdAt              DateTime               @default(now())
+  updatedAt              DateTime               @updatedAt
+  organizationId         Int?
+  clientEntityId         Int?
+  userId                 Int
+  legacyComplianceItemId Int?                   @unique
+  legacyTaskId           Int?                   @unique
+  organization           Organization?          @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+  clientEntity           ClientEntity?          @relation(fields: [clientEntityId], references: [id], onDelete: SetNull)
+  user                   User                   @relation(fields: [userId], references: [id])
+  legacyComplianceItem   ComplianceItem?        @relation("LegacyComplianceItem", fields: [legacyComplianceItemId], references: [id], onDelete: SetNull)
+  legacyTask             Task?                  @relation("LegacyTask", fields: [legacyTaskId], references: [id], onDelete: SetNull)
+  checklistItems         WorkItemChecklistItem[]
+  blockers               WorkItemBlocker[]
+  approvals              WorkItemApproval[]
+  evidence               WorkItemEvidence[]
+  auditEvents            WorkItemAuditEvent[]
+  notificationLogs       NotificationLog[]
+  documentVerifications  DocumentVerification[]
+  decisions              WorkDecision[]
+  opsEvents              OpsEvent[]
+
+  @@index([organizationId, deadline])
+  @@index([clientEntityId, deadline])
+  @@index([status, deadline])
+  @@index([archivedAt, deadline])
+}
+
+model WorkItemChecklistItem {
+  id            Int       @id @default(autoincrement())
+  workItemId    Int
+  label         String
+  sortOrder     Int
+  isDone        Boolean   @default(false)
+  completedAt   DateTime?
+  completedById Int?
+  workItem      WorkItem  @relation(fields: [workItemId], references: [id], onDelete: Cascade)
+  completedBy   User?     @relation("WorkItemChecklistCompletedBy", fields: [completedById], references: [id], onDelete: SetNull)
+
+  @@index([workItemId, sortOrder])
+}
+
+model WorkItemBlocker {
+  id                   Int       @id @default(autoincrement())
+  workItemId           Int
+  code                 String
+  label                String
+  reason               String
+  waitingOn            String?
+  needsManagerHelp     Boolean   @default(false)
+  isActive             Boolean   @default(true)
+  blockedAt            DateTime  @default(now())
+  blockedById          Int?
+  clearedAt            DateTime?
+  clearedById          Int?
+  resolutionNote       String?
+  managerResponseKind  String?
+  managerResponseLabel String?
+  managerResponseNote  String?
+  managerRespondedAt   DateTime?
+  managerRespondedById Int?
+  workItem             WorkItem  @relation(fields: [workItemId], references: [id], onDelete: Cascade)
+  blockedBy            User?     @relation("WorkItemBlockedBy", fields: [blockedById], references: [id], onDelete: SetNull)
+  clearedBy            User?     @relation("WorkItemClearedBy", fields: [clearedById], references: [id], onDelete: SetNull)
+  managerRespondedBy   User?     @relation("WorkItemBlockerManagerRespondedBy", fields: [managerRespondedById], references: [id], onDelete: SetNull)
+  decisions            WorkDecision[] @relation("WorkDecisionSourceBlocker")
+
+  @@index([workItemId, isActive, blockedAt])
+}
+
+model WorkItemApproval {
+  id                   Int       @id @default(autoincrement())
+  workItemId           Int
+  status               String    @default("Submitted")
+  submissionNote       String?
+  submittedAt          DateTime  @default(now())
+  submittedById        Int?
+  decidedAt            DateTime?
+  decidedById          Int?
+  rejectionReason      String?
+  managerResponseKind  String?
+  managerResponseLabel String?
+  managerResponseNote  String?
+  managerRespondedAt   DateTime?
+  managerRespondedById Int?
+  workItem             WorkItem  @relation(fields: [workItemId], references: [id], onDelete: Cascade)
+  submittedBy          User?     @relation("WorkItemSubmittedBy", fields: [submittedById], references: [id], onDelete: SetNull)
+  decidedBy            User?     @relation("WorkItemDecidedBy", fields: [decidedById], references: [id], onDelete: SetNull)
+  managerRespondedBy   User?     @relation("WorkItemApprovalManagerRespondedBy", fields: [managerRespondedById], references: [id], onDelete: SetNull)
+  decisions            WorkDecision[] @relation("WorkDecisionSourceApproval")
+
+  @@index([workItemId, submittedAt])
+}
+
+model WorkItemEvidence {
+  id           Int       @id @default(autoincrement())
+  workItemId   Int
+  kind         String    @default("PROOF")
+  label        String?
+  fileUrl      String
+  fileName     String?
+  documentId   Int?
+  documentVersionId Int?
+  isCurrent    Boolean   @default(true)
+  uploadedAt   DateTime  @default(now())
+  uploadedById Int?
+  workItem     WorkItem  @relation(fields: [workItemId], references: [id], onDelete: Cascade)
+  uploadedBy   User?     @relation("WorkItemEvidenceUploadedBy", fields: [uploadedById], references: [id], onDelete: SetNull)
+  document     Document? @relation(fields: [documentId], references: [id], onDelete: SetNull)
+  documentVersion DocumentVersion? @relation("EvidenceDocumentVersion", fields: [documentVersionId], references: [id], onDelete: SetNull)
+
+  @@index([workItemId, isCurrent, uploadedAt])
+  @@index([documentId, uploadedAt])
+  @@index([documentVersionId, uploadedAt])
+}
+
+model WorkItemAuditEvent {
+  id          Int      @id @default(autoincrement())
+  workItemId  Int
+  eventType   String
+  detail      String
+  payload     Json?
+  createdAt   DateTime @default(now())
+  actorUserId Int?
+  workItem    WorkItem @relation(fields: [workItemId], references: [id], onDelete: Cascade)
+  actorUser   User?    @relation("WorkItemAuditActor", fields: [actorUserId], references: [id], onDelete: SetNull)
+
+  @@index([workItemId, createdAt])
+}
+
+model Document {
+  id             Int                    @id @default(autoincrement())
+  title          String?
+  sourceType     String                 @default("GENERAL")
+  status         String                 @default("ACTIVE")
+  fingerprint    String?
+  createdAt      DateTime               @default(now())
+  updatedAt      DateTime               @updatedAt
+  archivedAt     DateTime?
+  organizationId Int?
+  clientEntityId Int?
+  ownerUserId    Int?
+  organization   Organization?          @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+  clientEntity   ClientEntity?          @relation(fields: [clientEntityId], references: [id], onDelete: SetNull)
+  ownerUser      User?                  @relation("DocumentOwnedBy", fields: [ownerUserId], references: [id], onDelete: SetNull)
+  versions       DocumentVersion[]
+  evidenceLinks  WorkItemEvidence[]
+  extractions    DocumentExtraction[]
+  verifications  DocumentVerification[]
+  decisions      WorkDecision[]
+  opsEvents      OpsEvent[]
+
+  @@index([organizationId, createdAt])
+  @@index([clientEntityId, createdAt])
+  @@index([ownerUserId, createdAt])
+  @@index([status, createdAt])
+}
+
+model DocumentVersion {
+  id              Int                    @id @default(autoincrement())
+  documentId      Int
+  versionNumber   Int
+  isCurrent       Boolean                @default(true)
+  fileName        String
+  mimeType        String?
+  fileExtension   String?
+  storageProvider String                 @default("LOCAL_PRIVATE")
+  storageKey      String
+  byteSize        Int?
+  checksum        String?
+  sourceUrl       String?
+  createdAt       DateTime               @default(now())
+  uploadedById    Int?
+  document        Document               @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  uploadedBy      User?                  @relation("DocumentVersionUploadedBy", fields: [uploadedById], references: [id], onDelete: SetNull)
+  extraction      DocumentExtraction?
+  verifications   DocumentVerification[]
+  evidenceLinks   WorkItemEvidence[]     @relation("EvidenceDocumentVersion")
+  decisions       WorkDecision[]
+  opsEvents       OpsEvent[]
+
+  @@unique([documentId, versionNumber])
+  @@index([documentId, isCurrent, createdAt])
+  @@index([storageProvider, storageKey])
+}
+
+model DocumentExtraction {
+  id                Int             @id @default(autoincrement())
+  documentId        Int
+  documentVersionId Int             @unique
+  readStatus        String
+  engine            String?
+  textPreview       String?
+  extractedText     String?
+  extractedFields   Json?
+  extractedAt       DateTime        @default(now())
+  document          Document        @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  documentVersion   DocumentVersion @relation(fields: [documentVersionId], references: [id], onDelete: Cascade)
+
+  @@index([documentId, extractedAt])
+}
+
+model DocumentVerification {
+  id                 Int             @id @default(autoincrement())
+  documentId         Int
+  documentVersionId  Int
+  workItemId         Int?
+  status             String
+  verificationSource String          @default("SYSTEM")
+  summary            String?
+  fields             Json?
+  mismatches         Json?
+  notes              Json?
+  verifiedAt         DateTime        @default(now())
+  document           Document        @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  documentVersion    DocumentVersion @relation(fields: [documentVersionId], references: [id], onDelete: Cascade)
+  workItem           WorkItem?       @relation(fields: [workItemId], references: [id], onDelete: SetNull)
+
+  @@unique([documentVersionId, workItemId, verificationSource], name: "documentVersionWorkItemVerification")
+  @@index([documentId, verifiedAt])
+  @@index([workItemId, verifiedAt])
+}
+
+model WorkDecision {
+  id                Int                @id @default(autoincrement())
+  kind              WorkDecisionKind
+  status            WorkDecisionStatus @default(OPEN)
+  priority          String             @default("NORMAL")
+  title             String
+  summary           String?
+  requestedAt       DateTime           @default(now())
+  dueAt             DateTime?
+  resolvedAt        DateTime?
+  resolutionNote    String?
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+  organizationId    Int?
+  clientEntityId    Int?
+  workItemId        Int?
+  documentId        Int?
+  documentVersionId Int?
+  sourceBlockerId   Int?
+  sourceApprovalId  Int?
+  requestedById     Int?
+  assignedToId      Int?
+  resolvedById      Int?
+  organization      Organization?      @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+  clientEntity      ClientEntity?      @relation(fields: [clientEntityId], references: [id], onDelete: SetNull)
+  workItem          WorkItem?          @relation(fields: [workItemId], references: [id], onDelete: SetNull)
+  document          Document?          @relation(fields: [documentId], references: [id], onDelete: SetNull)
+  documentVersion   DocumentVersion?   @relation(fields: [documentVersionId], references: [id], onDelete: SetNull)
+  sourceBlocker     WorkItemBlocker?   @relation("WorkDecisionSourceBlocker", fields: [sourceBlockerId], references: [id], onDelete: SetNull)
+  sourceApproval    WorkItemApproval?  @relation("WorkDecisionSourceApproval", fields: [sourceApprovalId], references: [id], onDelete: SetNull)
+  requestedBy       User?              @relation("WorkDecisionRequestedBy", fields: [requestedById], references: [id], onDelete: SetNull)
+  assignedTo        User?              @relation("WorkDecisionAssignedTo", fields: [assignedToId], references: [id], onDelete: SetNull)
+  resolvedBy        User?              @relation("WorkDecisionResolvedBy", fields: [resolvedById], references: [id], onDelete: SetNull)
+  auditEvents       WorkDecisionAuditEvent[]
+  opsEvents         OpsEvent[]
+
+  @@index([organizationId, status, dueAt])
+  @@index([workItemId, status, dueAt])
+  @@index([assignedToId, status, dueAt])
+  @@index([documentVersionId, status])
+}
+
+model WorkDecisionAuditEvent {
+  id          Int          @id @default(autoincrement())
+  decisionId  Int
+  eventType   String
+  detail      String
+  payload     Json?
+  createdAt   DateTime     @default(now())
+  actorUserId Int?
+  decision    WorkDecision @relation(fields: [decisionId], references: [id], onDelete: Cascade)
+  actorUser   User?        @relation("WorkDecisionAuditActor", fields: [actorUserId], references: [id], onDelete: SetNull)
+
+  @@index([decisionId, createdAt])
+}
+
+model OpsEvent {
+  id                Int            @id @default(autoincrement())
+  topic             OpsEventTopic
+  status            OpsEventStatus @default(PENDING)
+  dedupeKey         String?
+  attempts          Int            @default(0)
+  payload           Json?
+  scheduledAt       DateTime       @default(now())
+  startedAt         DateTime?
+  completedAt       DateTime?
+  lastError         String?
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+  organizationId    Int?
+  clientEntityId    Int?
+  workItemId        Int?
+  documentId        Int?
+  documentVersionId Int?
+  decisionId        Int?
+  organization      Organization?  @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+  clientEntity      ClientEntity?  @relation(fields: [clientEntityId], references: [id], onDelete: SetNull)
+  workItem          WorkItem?      @relation(fields: [workItemId], references: [id], onDelete: SetNull)
+  document          Document?      @relation(fields: [documentId], references: [id], onDelete: SetNull)
+  documentVersion   DocumentVersion? @relation(fields: [documentVersionId], references: [id], onDelete: SetNull)
+  decision          WorkDecision?  @relation(fields: [decisionId], references: [id], onDelete: SetNull)
+
+  @@index([status, scheduledAt])
+  @@index([topic, status, createdAt])
+  @@index([workItemId, createdAt])
+  @@index([documentVersionId, createdAt])
+}
+
+model AssistantTrace {
+  id                 Int             @id @default(autoincrement())
+  query              String
+  intent             String?
+  toolName           String?
+  mode               String
+  replyPreview       String
+  grounding          String?
+  historyDepth       Int             @default(0)
+  usedSnapshot       Boolean         @default(true)
+  usedDocumentSearch Boolean         @default(false)
+  createdAt          DateTime        @default(now())
+  organizationId     Int?
+  userId             Int?
+  organization       Organization?   @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+  user               User?           @relation(fields: [userId], references: [id], onDelete: SetNull)
+  evaluations        AssistantEvaluation[]
+
+  @@index([organizationId, createdAt])
+  @@index([userId, createdAt])
+  @@index([toolName, createdAt])
+}
+
+model AssistantEvaluation {
+  id                Int            @id @default(autoincrement())
+  traceId           Int
+  evaluator         String         @default("HEURISTIC_V1")
+  overallScore      Float
+  groundingScore    Float
+  actionabilityScore Float
+  completenessScore Float
+  notes             Json?
+  createdAt         DateTime       @default(now())
+  trace             AssistantTrace @relation(fields: [traceId], references: [id], onDelete: Cascade)
+
+  @@index([traceId, createdAt])
 }
 
 model Training {
@@ -216,6 +664,32 @@ model UserBehaviorLog {
   timestamp   DateTime @default(now())
 }
 
+model NotificationLog {
+  id               Int             @id @default(autoincrement())
+  channel          NotificationChannel
+  stage            NotificationStage
+  status           NotificationStatus @default(PENDING)
+  recipient        String
+  messagePreview   String
+  dedupeKey        String          @unique
+  providerMessageId String?
+  errorMessage     String?
+  retryCount       Int             @default(0)
+  createdAt        DateTime        @default(now())
+  lastAttemptAt    DateTime?
+  sentAt           DateTime?
+  complianceItemId Int?
+  workItemId       Int?
+  userId           Int?
+  complianceItem   ComplianceItem? @relation(fields: [complianceItemId], references: [id])
+  workItem         WorkItem?       @relation(fields: [workItemId], references: [id])
+  user             User?           @relation(fields: [userId], references: [id])
+
+  @@index([channel, stage, status])
+  @@index([complianceItemId, createdAt])
+  @@index([workItemId, createdAt])
+}
+
 enum Role {
   ADMIN
   ACCOUNTANT
@@ -228,4 +702,59 @@ enum TrainingStatus {
   SCHEDULED
   COMPLETED
   CANCELLED
+}
+
+enum NotificationChannel {
+  WHATSAPP
+}
+
+enum NotificationStage {
+  ASSIGNEE_PRE_DUE
+  ASSIGNEE_DUE_TODAY
+  ASSIGNEE_OVERDUE
+  ASSIGNEE_MANAGER_RESPONSE
+  MANAGER_OVERDUE_ESCALATION
+  MANAGER_APPROVAL_NUDGE
+  MANAGER_BLOCKER_ALERT
+  MANAGER_MORNING_DIGEST
+  MANAGER_MIDDAY_DIGEST
+}
+
+enum NotificationStatus {
+  PENDING
+  SENT
+  FAILED
+  SKIPPED
+}
+
+enum WorkDecisionKind {
+  APPROVAL_DECISION
+  DOCUMENT_DECISION
+  PAYMENT_APPROVAL
+  ESCALATION_REVIEW
+}
+
+enum WorkDecisionStatus {
+  OPEN
+  APPROVED
+  REJECTED
+  RESOLVED
+  CANCELLED
+}
+
+enum OpsEventTopic {
+  DOCUMENT_EXTRACTION_REQUESTED
+  DOCUMENT_VERIFICATION_REQUESTED
+  BLOCKER_ESCALATION_REQUESTED
+  DECISION_SYNC_REQUESTED
+  WORK_ITEM_SUBMITTED
+  WHATSAPP_INTAKE_RECEIVED
+}
+
+enum OpsEventStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+  SKIPPED
 }

@@ -1,8 +1,9 @@
 "use client";
 
-import { Check, Plus, Trash2 } from "lucide-react";
+import Link from "next/link";
+import { ArrowRight, Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
-import { markAsCompleted, createComplianceItem, deleteComplianceItem } from "@/app/actions";
+import { createComplianceItem, deleteComplianceItem } from "@/app/actions";
 import { SubmitButton } from "@/components/SubmitButton";
 
 // Define the exact shape of the data
@@ -13,6 +14,22 @@ interface ComplianceItem {
   responsible: string;
   status: string;
   deadline: Date;
+}
+
+function getStatusClasses(status: string) {
+  if (status === "Approved" || status === "Completed") {
+    return "bg-emerald-50 text-emerald-600 border-emerald-100";
+  }
+
+  if (status === "Submitted") {
+    return "bg-blue-50 text-blue-600 border-blue-100";
+  }
+
+  if (status === "Rejected") {
+    return "bg-rose-50 text-rose-600 border-rose-100";
+  }
+
+  return "bg-amber-50 text-amber-600 border-amber-100";
 }
 
 // Replaced 'any[]' with 'ComplianceItem[]'
@@ -49,7 +66,12 @@ export default function ComplianceTable({ items }: { items: ComplianceItem[] }) 
       {/* 2. THE COMPLIANCE ROADMAP LIST */}
       <section className="bg-white rounded-[3rem] shadow-2xl border border-gray-100 overflow-hidden">
         <div className="p-10 border-b border-gray-50 bg-gray-50/50 flex justify-between items-center">
-          <h3 className="font-black text-2xl text-gray-900 tracking-tight">Compliance Roadmap</h3>
+          <div>
+            <h3 className="font-black text-2xl text-gray-900 tracking-tight">Compliance Roadmap</h3>
+            <p className="mt-2 text-xs font-semibold text-gray-500">
+              Use the task board to submit proof and send items through approval.
+            </p>
+          </div>
           <span className="text-[10px] font-black bg-gray-900 text-white px-3 py-1 rounded-full uppercase tracking-widest">Active Database</span>
         </div>
         <div className="overflow-x-auto">
@@ -76,23 +98,19 @@ export default function ComplianceTable({ items }: { items: ComplianceItem[] }) 
                     </td>
                     <td className="px-10 py-8 text-sm text-gray-500 font-black italic tracking-tight">{item.responsible}</td>
                     <td className="px-10 py-8 text-center">
-                      <span className={`inline-block px-5 py-2 rounded-full text-[10px] font-black uppercase tracking-widest border-2 ${
-                        item.status === 'Completed' ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 'bg-amber-50 text-amber-600 border-amber-100'
-                      }`}>
+                      <span className={`inline-block px-5 py-2 rounded-full text-[10px] font-black uppercase tracking-widest border-2 ${getStatusClasses(item.status)}`}>
                         {item.status}
                       </span>
                     </td>
                     <td className="px-10 py-8 text-right">
                       <div className="flex justify-end gap-3">
-                        <button 
-                          onClick={async () => {
-                            await markAsCompleted(item.id);
-                            toast.info("Status updated to Completed");
-                          }}
-                          className="bg-gray-900 text-white p-3 rounded-2xl hover:bg-emerald-600 transition-all shadow-xl active:scale-90 flex items-center justify-center"
+                        <Link
+                          href="/tasks"
+                          className="bg-gray-900 text-white p-3 rounded-2xl hover:bg-blue-600 transition-all shadow-xl active:scale-90 flex items-center justify-center"
+                          title="Manage in task board"
                         >
-                          <Check size={18} strokeWidth={3} />
-                        </button>
+                          <ArrowRight size={18} strokeWidth={3} />
+                        </Link>
                         
                         <button 
                           onClick={async () => {
